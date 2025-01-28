@@ -1,0 +1,204 @@
+/* Reset and base styles */
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Poppins", serif;
+  line-height: 1.5;
+  color: #333;
+}
+
+/* Container */
+.container {
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Language Selector */
+.language-selector {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+}
+
+.language-selector select {
+  background: transparent;
+  border: none;
+  font-size: 0.875rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.language-selector select:focus {
+  outline: none;
+}
+
+/* Main Layout */
+.main {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Login Section */
+.login-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.login-content {
+  max-width: 28rem;
+  width: 100%;
+}
+
+/* Header */
+.header {
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.header p {
+  font-size: 1.25rem;
+  color: #666;
+}
+
+/* Login Options */
+.login-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Google Button */
+.google-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  background: white;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.google-button:hover {
+  background-color: #f8f8f8;
+}
+
+/* Divider */
+.divider {
+  position: relative;
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #ddd;
+}
+
+.divider span {
+  position: relative;
+  background: white;
+  padding: 0 0.5rem;
+  color: #666;
+  font-size: 0.875rem;
+}
+
+/* Email Login */
+.email-login {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.email-login input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+}
+
+.email-login input:focus {
+  outline: none;
+  border-color: #4285f4;
+}
+
+.login-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.login-button:hover {
+  background: #3367d6;
+}
+
+/* Terms */
+.terms {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.terms a {
+  color: #333;
+  text-decoration: underline;
+}
+
+/* Illustration Section */
+.illustration-section {
+  display: none;
+  flex: 1;
+  position: relative;
+}
+
+.illustration-section img {
+  object-fit: contain;
+  padding-top: 10rem;
+}
+
+/* Media Queries */
+@media (min-width: 1024px) {
+  .main {
+    flex-direction: row;
+  }
+
+  .login-section {
+    padding: 4rem;
+  }
+
+  .illustration-section {
+    display: block;
+  }
+}
