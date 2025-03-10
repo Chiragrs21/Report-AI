@@ -118,13 +118,13 @@ class DatabaseHandler:
                     f"Available DB connections: {list(self.db_connections.keys())}")
                 return
 
-            llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-pro",
-                google_api_key=GEMINI_API_KEY,
-                temperature=0.1,
-                top_p=0.95,
-                max_output_tokens=2048
-            )
+            llm = ChatGoogleGenerativeAI(s
+                                         model="gemini-1.5-pro",
+                                         google_api_key=GEMINI_API_KEY,
+                                         temperature=0.1,
+                                         top_p=0.95,
+                                         max_output_tokens=2048
+                                         )
 
             toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 

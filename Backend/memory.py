@@ -119,7 +119,7 @@ def connect_to_database():
         except Exception as e:
             logger.warning(
                 f"Failed to initialize Gemini: {str(e)}. Falling back to ChatOpenAI")
-            # Requires OPENAI_API_KEY
+
             llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.1)
 
         toolkit = SQLDatabaseToolkit(db=sql_db, llm=llm)
