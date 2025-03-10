@@ -1,0 +1,4 @@
+Table,Description
+customers,"Stores customer contact info and credit limits"
+orders,"Contains order headers with dates and statuses"
+payments,"Records of customer payments"

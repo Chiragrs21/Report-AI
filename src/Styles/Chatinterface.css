@@ -9,7 +9,7 @@
 
 .connect-dropdown {
   position: relative;
-  left: 162px;
+  left: 62px;
 }
 
 .connect-button {
@@ -93,7 +93,7 @@
 .chat-interface {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  height: 100vh; /* Full viewport height */
 }
 
 .main-header {
@@ -174,7 +174,7 @@
   justify-content: center;
   gap: 16px;
   padding: 18px 30px;
-  border-bottom: 1px solid #e9edf7;
+  /* border-bottom: 1px solid #e9edf7; */
 }
 
 .model-buttons {
@@ -221,41 +221,121 @@
 
 .chat-area {
   flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   background-color: #f4f7fe;
-  padding: 200px;
+}
+
+.message-container {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  max-width: 768px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.message-bubble {
+  padding: 12px 16px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  font-size: 15px;
+  line-height: 1.5;
+  color: #2d3748;
+  max-width: 600px;
+  word-break: break-word;
+  font-weight: 500; /* Added medium bold */
 }
 
 .message-input-area {
   border-top: 1px solid #e9edf7;
   padding: 30px;
+  background-color: #ffffff;
+  position: sticky;
+  bottom: 0;
+  margin-top: auto; /* Pushes it to the bottom */
 }
 
 .message-form {
-  display: flex;
-  gap: 16px;
+  position: relative;
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+.input-container {
+  position: relative;
   max-width: 768px;
   margin: 0 auto;
 }
 
 .message-input {
-  flex: 1;
-  height: 60px;
-  padding: 0 24px;
-  border-radius: 30px;
+  width: 100%;
+  padding: 12px 56px 12px 24px;
+  border-radius: 26px;
   border: 1px solid #e9edf7;
   font-size: 14px;
   color: #1b2559;
+  background-color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.message-input:focus {
+  outline: none;
+  border-color: #4318ff;
+  box-shadow: 0 0 0 2px rgba(67, 24, 255, 0.1);
 }
 
 .submit-button {
-  padding: 0 24px;
-  border-radius: 30px;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
   border: none;
-  background-color: #4318ff;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
+  background-color: #f4f7fe;
+  border-radius: 50%;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.submit-button:hover {
+  background-color: #4318ff;
+}
+
+.submit-button:hover .submit-icon {
+  color: white;
+  transform: translateX(2px);
+}
+
+.submit-icon {
+  width: 20px;
+  height: 20px;
+  color: #6b6b6b;
+  transition: all 0.2s ease;
+}
+
+.submit-button:disabled {
+  background-color: #f4f7fe;
+  cursor: not-allowed;
+}
+
+.submit-button:disabled .submit-icon {
+  color: #e9edf7;
 }
 
 .disclaimer {
@@ -296,6 +376,36 @@
 }
 
 /* Dark mode styles */
+.chat-interface.dark-mode .chat-area {
+  background-color: #2d3748;
+}
+
+.chat-interface.dark-mode .message-bubble {
+  background-color: #4a5568;
+  color: #f7fafc; /* Brighter white */
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Keep existing .message-input-area styles, just add: */
+.message-input-area {
+  background-color: #ffffff;
+}
+
+.chat-interface.dark-mode .submit-icon {
+  color: #718096;
+}
+
+.chat-interface.dark-mode .submit-button:hover .submit-icon {
+  color: #63b3ed;
+  transform: translateX(2px);
+}
+
+.chat-interface.dark-mode .message-input-area {
+  background-color: #2d3748;
+  border-top-color: #4a5568;
+}
+
 .chat-interface.dark-mode {
   background-color: #1a202c;
   color: #e2e8f0;
@@ -352,8 +462,34 @@
   color: #e2e8f0;
 }
 
+.chat-interface.dark-mode .message-input {
+  background-color: #4a5568;
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
 .chat-interface.dark-mode .submit-button {
+  background-color: #1168ff;
+}
+
+.chat-interface.dark-mode .submit-icon {
+  color: #a0aec0;
+}
+
+.chat-interface.dark-mode .submit-button:hover {
   background-color: #4318ff;
+}
+
+.chat-interface.dark-mode .submit-button:hover .submit-icon {
+  color: white;
+}
+
+.chat-interface.dark-mode .submit-button:disabled {
+  background-color: #4a5568;
+}
+
+.chat-interface.dark-mode .submit-button:disabled .submit-icon {
+  color: #718096;
 }
 
 .chat-interface.dark-mode .disclaimer,
@@ -452,4 +588,356 @@
 
 .chat-interface.dark-mode .sign-out-button:hover {
   color: #63b3ed;
+}
+
+/* Loading Modal Styles */
+.loading-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.loading-modal.dark {
+  background: #2d3748;
+  color: #e2e8f0;
+}
+
+.spinner-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.spinner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  border: 4px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+    linear-gradient(45deg, #4318ff 0%, #a855f7 50%, #4318ff 100%) border-box;
+  animation: rotate 1.5s linear infinite;
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 600;
+  color: #4318ff;
+  font-size: 1.2em;
+  animation: rotate-counter 1.5s linear infinite;
+}
+
+.loading-modal.dark .progress-text {
+  color: #63b3ed;
+}
+
+.loading-modal.dark .spinner {
+  background: linear-gradient(#2d3748, #2d3748) padding-box,
+    linear-gradient(45deg, #63b3ed 0%, #a855f7 50%, #63b3ed 100%) border-box;
+}
+
+.spinner.complete {
+  animation: none;
+  background: #4318ff;
+  border-color: transparent;
+}
+
+.loading-modal.dark .spinner.complete {
+  background: #63b3ed;
+}
+
+.spinner-progress {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 600;
+  color: #4318ff;
+}
+
+.loading-modal.dark .spinner-progress {
+  color: #63b3ed;
+}
+
+.checkmark {
+  width: 40px;
+  height: 40px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+}
+
+.loading-content {
+  flex: 1;
+}
+
+.status-text {
+  color: #718096;
+  font-size: 0.9em;
+  margin-top: 8px;
+}
+
+.loading-modal.dark .status-text {
+  color: #cbd5e0;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rotate-counter {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(-360deg);
+  }
+}
+
+/* Add these styles to your existing ChatInterface.css file */
+
+/* Connection status display */
+.connection-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.disconnect-button {
+  background-color: #f56565;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.dark-mode .disconnect-button {
+  background-color: #e53e3e;
+}
+
+/* Welcome message */
+.welcome-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 100px auto;
+  max-width: 500px;
+  text-align: center;
+  color: #4a5568;
+}
+
+.dark-mode .welcome-message {
+  color: #e2e8f0;
+}
+
+.welcome-message h2 {
+  margin-bottom: 16px;
+}
+
+/* System messages */
+.system-message {
+  background-color: #f7fafc;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.dark-mode .system-message {
+  background-color: #2d3748;
+}
+
+.system-message-content {
+  font-style: italic;
+  color: #4a5568;
+}
+
+.dark-mode .system-message-content {
+  color: #a0aec0;
+}
+
+.error-message .message-bubble {
+  background-color: #fff5f5;
+  border: 1px solid #fed7d7;
+}
+
+.dark-mode .error-message .message-bubble {
+  background-color: #3b2626;
+  border: 1px solid #63171b;
+}
+
+/* Message styling */
+.message-content code {
+  font-family: monospace;
+}
+
+.message-content pre {
+  margin: 10px 0;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.dark-mode .message-content pre {
+  background-color: #2d3748;
+}
+
+.sql-block {
+  background-color: #f0f4f8 !important;
+  border-left: 3px solid #4299e1;
+}
+
+.dark-mode .sql-block {
+  background-color: #1a202c !important;
+  border-left: 3px solid #4299e1;
+}
+
+/* Connection form modal */
+.connection-form-modal {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+  width: 400px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.dark-mode .connection-form-modal {
+  background-color: #2d3748;
+  color: #e2e8f0;
+}
+
+.connection-form-modal h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+}
+
+.dark-mode .form-group input {
+  background-color: #4a5568;
+  border-color: #718096;
+  color: #e2e8f0;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.cancel-button {
+  background-color: #e2e8f0;
+  color: #4a5568;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.dark-mode .cancel-button {
+  background-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.connect-submit-button {
+  background-color: #4299e1;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.dark-mode .connect-submit-button {
+  background-color: #3182ce;
+}
+
+/* Loading spinner enhancements */
+.spinner.error {
+  border-color: #f56565;
+}
+
+.error-mark {
+  color: #f56565;
+  width: 24px;
+  height: 24px;
+}
+
+.message-input:disabled {
+  background-color: #f7fafc;
+  cursor: not-allowed;
+}
+
+.dark-mode .message-input:disabled {
+  background-color: #2d3748;
+}
+
+/* User and AI message distinction */
+.user-message .message-bubble {
+  background-color: #ebf8ff;
+}
+
+.dark-mode .user-message .message-bubble {
+  background-color: #2c5282;
+}
+
+.ai-message .message-bubble {
+  background-color: #f0fff4;
+}
+
+.dark-mode .ai-message .message-bubble {
+  background-color: #276749;
 }
