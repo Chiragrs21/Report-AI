@@ -39,11 +39,12 @@ if not gemini_api_key:
     exit(1)
 genai.configure(api_key=gemini_api_key, transport='grpc')
 
-# Store active connections with schema cache and LLM
+# Store active connections with schema cache, LLM, and history
 active_connections = {}
 
 # Connection timeout (in seconds)
 CONNECTION_TIMEOUT = 3600  # 1 hour
+MAX_HISTORY_LENGTH = 10  # Limit history to last 10 interactions
 
 
 def cleanup_stale_connections():
@@ -104,7 +105,6 @@ def connect_to_database():
 
         sql_db = SQLDatabase(engine)
         schema_cache = sql_db.get_table_info()
-        # Avoid logging full schema
         logger.debug("Database schema cached successfully")
 
         llm = ChatGoogleGenerativeAI(
@@ -131,6 +131,7 @@ def connect_to_database():
             'type': db_type,
             'info': db_info,
             'schema_cache': schema_cache,
+            'history': [],
             'last_used': time.time()
         }
 
@@ -174,7 +175,7 @@ def disconnect_database():
 
 @app.route('/process', methods=['POST'])
 def process_question():
-    """Process a natural language question, generate SQL and execute it"""
+    """Process a natural language question, generate SQL and execute it with conversation history"""
     try:
         cleanup_stale_connections()
 
@@ -190,12 +191,20 @@ def process_question():
         connection_data = active_connections[connection_id]
         llm = connection_data['llm']
         schema_cache = connection_data['schema_cache']
+        history = connection_data['history']
 
-        # Custom prompt to generate SQL query only (schema kept internal)
+        # Build history context
+        history_context = "\n\nPrevious conversation:\n" + "\n".join(
+            [f"Q: {entry['question']}\nSQL: {entry['sql']}" for entry in history]
+        ) if history else ""
+
+        # Updated prompt to avoid LIMIT in subqueries
         prompt = (
             f"Given the following database schema:\n{schema_cache}\n"
+            f"{history_context}\n"
             f"Generate a SQL query for this question: {question}\n"
-            "Return only the SQL query inside ```sql``` tags."
+            "Return only the SQL query inside ```sql``` tags.\n"
+            "Note: Do not use LIMIT inside IN, ALL, ANY, or SOME subqueries, as this is not supported in older MySQL versions."
         )
 
         max_retries = 3
@@ -228,12 +237,18 @@ def process_question():
 
         result = execute_query(connection_data, sql_query)
 
+        # Update history
+        history.append({'question': question, 'sql': sql_query})
+        if len(history) > MAX_HISTORY_LENGTH:
+            history.pop(0)
+        connection_data['history'] = history
+
         return jsonify({
             'success': True,
             'question': question,
             'sql': sql_query,
             'result': result,
-            'reasoning': "Generated and executed SQL query based on the database schema"
+            'reasoning': "Generated and executed SQL query based on the database schema and prior conversation"
         }), 200
 
     except Exception as e:
@@ -248,7 +263,7 @@ def process_question():
 
 def extract_sql_query(agent_response):
     """Extract SQL query from AIMessage response"""
-    output = agent_response.content  # Directly access content attribute of AIMessage
+    output = agent_response.content
     sql_pattern = r"```sql\s*([\s\S]*?)\s*```"
     match = re.search(sql_pattern, output, re.IGNORECASE)
     return match.group(1).strip() if match else None
@@ -259,6 +274,8 @@ def execute_query(connection_data, sql_query):
     connection = connection_data['connection']
     db_type = connection_data['type']
     try:
+        # Log the query for debugging
+        logger.debug(f"Executing query: {sql_query}")
         if db_type == 'mysql':
             with connection.cursor(dictionary=True) as cursor:
                 cursor.execute(sql_query)
@@ -277,6 +294,7 @@ def execute_query(connection_data, sql_query):
                 connection.commit()
                 return {"affected_rows": cursor.rowcount}
     except Exception as e:
+        logger.error(f"Query execution failed: {str(e)}")
         raise Exception(f"Query execution error: {str(e)}")
 
 

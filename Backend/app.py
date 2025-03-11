@@ -36,15 +36,23 @@ CORS(app)
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if not gemini_api_key:
     logger.error("GEMINI_API_KEY not set in environment")
-    exit(1)
+    raise Exception("GEMINI_API_KEY not set in environment")
 genai.configure(api_key=gemini_api_key, transport='grpc')
 
-# Store active connections with schema cache, LLM, and history
+# Store active connections
 active_connections = {}
 
 # Connection timeout (in seconds)
 CONNECTION_TIMEOUT = 3600  # 1 hour
 MAX_HISTORY_LENGTH = 10  # Limit history to last 10 interactions
+
+# Supported visualization types
+VISUALIZATION_TYPES = {
+    "as a pie chart": "pie",
+    "as a line graph": "line",
+    "as a bar chart": "bar",
+    "as a area chart": "area"
+}
 
 
 def cleanup_stale_connections():
@@ -58,9 +66,66 @@ def cleanup_stale_connections():
             disconnect_database({'connection_id': conn_id})
 
 
+def detect_visualization_type(question: str) -> tuple[str, str]:
+    """Detect visualization type and return type and cleaned question"""
+    question_lower = question.lower()
+    for viz_phrase, viz_type in VISUALIZATION_TYPES.items():
+        if viz_phrase in question_lower:
+            cleaned_question = re.sub(
+                rf"\b{viz_phrase}\b", "", question_lower, flags=re.IGNORECASE).strip()
+            return viz_type, cleaned_question
+    return None, question  # No visualization detected
+
+
+def format_for_visualization(sql_query: str, result: list, viz_type: str) -> dict:
+    """Format query results for frontend visualization (Chart.js compatible)"""
+    if not result or not viz_type:
+        logger.debug("No result or viz_type, returning raw data")
+        return {"data": result}
+
+    logger.debug(f"Formatting result for {viz_type}: {result}")
+    labels = [row.get("label") or row.get("category")
+              or list(row.keys())[0] for row in result]
+    values = [row.get("value") or list(row.values())[1] for row in result]
+
+    if viz_type == "pie":
+        return {
+            "type": "pie",
+            "data": {
+                "labels": labels,
+                "datasets": [{"data": values, "backgroundColor": ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0"]}]
+            }
+        }
+    elif viz_type == "line":
+        return {
+            "type": "line",
+            "data": {
+                "labels": labels,
+                "datasets": [{"label": "Data", "data": values, "borderColor": "#36A2EB", "fill": False}]
+            }
+        }
+    elif viz_type == "bar":
+        return {
+            "type": "bar",
+            "data": {
+                "labels": labels,
+                "datasets": [{"label": "Count", "data": values, "backgroundColor": "#FF6384"}]
+            }
+        }
+    elif viz_type == "area":
+        return {
+            "type": "area",
+            "data": {
+                "labels": labels,
+                "datasets": [{"label": "Trend", "data": values, "backgroundColor": "#36A2EB", "fill": True}]
+            }
+        }
+    return {"data": result}  # Fallback
+
+
 @app.route('/connect', methods=['POST'])
 def connect_to_database():
-    """Connect to a database (MySQL or SQLite) and return connection ID"""
+    # ... (unchanged from previous version)
     try:
         data = request.json
         if not isinstance(data, dict):
@@ -131,7 +196,7 @@ def connect_to_database():
             'type': db_type,
             'info': db_info,
             'schema_cache': schema_cache,
-            'history': [],  # Initialize empty history list
+            'history': [],
             'last_used': time.time()
         }
 
@@ -151,7 +216,7 @@ def connect_to_database():
 
 @app.route('/disconnect', methods=['POST'])
 def disconnect_database():
-    """Disconnect from a database using connection ID"""
+    # ... (unchanged from previous version)
     try:
         data = request.json
         connection_id = data.get('connection_id')
@@ -175,7 +240,6 @@ def disconnect_database():
 
 @app.route('/process', methods=['POST'])
 def process_question():
-    """Process a natural language question, generate SQL and execute it with conversation history"""
     try:
         cleanup_stale_connections()
 
@@ -193,71 +257,76 @@ def process_question():
         schema_cache = connection_data['schema_cache']
         history = connection_data['history']
 
+        # Detect visualization based on "as a [chart type]" phrase
+        viz_type, question_to_process = detect_visualization_type(question)
+        if not viz_type and " as a " in question.lower():  # Default to line if "as a" is present but no match
+            viz_type = "line"
+            question_to_process = question.lower().split(" as a ")[0].strip()
+        logger.debug(
+            f"Detected: viz_type={viz_type}, question={question_to_process}")
+
         # Build history context
         history_context = "\n\nPrevious conversation:\n" + "\n".join(
             [f"Q: {entry['question']}\nSQL: {entry['sql']}" for entry in history]
         ) if history else ""
 
-        # Custom prompt with history
+        # Prompt with visualization instruction
         prompt = (
             f"Given the following database schema:\n{schema_cache}\n"
             f"{history_context}\n"
-            f"Generate a SQL query for this question: {question}\n"
-            "Return only the SQL query inside ```sql``` tags."
+            f"Generate a SQL query for this question: {question_to_process}\n"
+            f"{'For a ' + viz_type + ' visualization, return exactly two columns: label (e.g., category, date) and value (e.g., count, sum). Use these exact aliases.' if viz_type else ''}\n"
+            "Return only the SQL query inside ```sql``` tags.\n"
+            "Note: Do not use LIMIT inside IN, ALL, ANY, or SOME subqueries."
         )
+        logger.debug(f"Prompt: {prompt}")
 
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 agent_response = llm.invoke(prompt)
+                logger.debug(f"LLM response: {agent_response.content}")
                 break
             except exceptions.ResourceExhausted as e:
                 if attempt == max_retries - 1:
-                    logger.error(
-                        f"Gemini quota exhausted after {max_retries} attempts: {str(e)}")
-                    return jsonify({
-                        'success': False,
-                        'error': 'Gemini API quota exhausted. Please try again later or check your quota limits.',
-                        'details': str(e)
-                    }), 429
-                logger.info(
-                    f"Resource exhausted, retrying in {2 ** attempt} seconds... Attempt {attempt + 1}/{max_retries}")
+                    logger.error(f"Gemini quota exhausted: {str(e)}")
+                    return jsonify({'success': False, 'error': 'Gemini API quota exhausted'}), 429
+                logger.info(f"Retrying in {2 ** attempt} seconds...")
                 time.sleep(2 ** attempt)
 
         connection_data['last_used'] = time.time()
 
         sql_query = extract_sql_query(agent_response)
         if not sql_query:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to generate SQL query',
-                'agent_response': str(agent_response)
-            }), 500
+            logger.error("No SQL query generated")
+            return jsonify({'success': False, 'error': 'Failed to generate SQL query', 'agent_response': str(agent_response)}), 500
 
         result = execute_query(connection_data, sql_query)
+        logger.debug(f"Raw result: {result}")
+
+        # Format result for visualization if detected
+        formatted_result = format_for_visualization(
+            sql_query, result, viz_type) if viz_type else result
+        logger.debug(f"Formatted result: {formatted_result}")
 
         # Update history
         history.append({'question': question, 'sql': sql_query})
         if len(history) > MAX_HISTORY_LENGTH:
-            history.pop(0)  # Remove oldest entry if exceeding limit
+            history.pop(0)
         connection_data['history'] = history
 
         return jsonify({
             'success': True,
             'question': question,
             'sql': sql_query,
-            'result': result,
-            'reasoning': "Generated and executed SQL query based on the database schema and prior conversation"
+            'result': formatted_result,
+            'visualization': viz_type,
+            'reasoning': f"Generated and executed SQL query {'for ' + viz_type + ' visualization' if viz_type else ''}"
         }), 200
 
     except Exception as e:
         logger.error(f"Process error: {str(e)}", exc_info=True)
-        traceback_str = traceback.format_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'traceback': traceback_str
-        }), 500
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 
 def extract_sql_query(agent_response):
@@ -273,6 +342,7 @@ def execute_query(connection_data, sql_query):
     connection = connection_data['connection']
     db_type = connection_data['type']
     try:
+        logger.debug(f"Executing query: {sql_query}")
         if db_type == 'mysql':
             with connection.cursor(dictionary=True) as cursor:
                 cursor.execute(sql_query)
@@ -285,12 +355,13 @@ def execute_query(connection_data, sql_query):
                 cursor = connection.cursor()
                 cursor.execute(sql_query)
                 if sql_query.strip().upper().startswith(("SELECT", "PRAGMA")):
-                    column_names = [desc[0] for desc in cursor.description]
+                    column_names = [_DESC[0] for _DESC in cursor.description]
                     rows = cursor.fetchall()
                     return json.loads(json.dumps([dict(zip(column_names, row)) for row in rows], default=str))
                 connection.commit()
-                return {"affected12_rows": cursor.rowcount}
+                return {"affected_rows": cursor.rowcount}
     except Exception as e:
+        logger.error(f"Query execution failed: {str(e)}")
         raise Exception(f"Query execution error: {str(e)}")
 
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Bell, HelpCircle, Moon, Search, ArrowRight, Sun, LogOut, Database, FileSpreadsheet, ChevronDown, Zap } from "lucide-react";
 import "../Styles/Chatinterface.css";
+import ChartRenderer from "../components/charts/ChartRender";
+import { Chart as ChartJS } from 'chart.js/auto';
 
 export function ChatInterface({ isDarkMode, toggleDarkMode }) {
     const [message, setMessage] = useState("");
@@ -34,9 +36,9 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         clearInterval(timer);
                         setTimeout(() => {
                             setShowLoadingModal(false);
-                            if (!connectionError) {
+                            // Only set isConnected if connectionId is present (successful connection)
+                            if (connectionId && !connectionError) {
                                 setIsConnected(true);
-                                // Add a system message to indicate successful connection
                                 setMessages(prevMessages => [...prevMessages, {
                                     id: Date.now(),
                                     text: `Successfully connected to ${dbInfo ? dbInfo.type : ''} database${dbInfo && dbInfo.database ? ` '${dbInfo.database}'` : ''}. You can now ask questions about your data.`,
@@ -53,7 +55,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
 
             return () => clearInterval(timer);
         }
-    }, [showLoadingModal, connectionError, dbInfo, showConnectionForm]);
+    }, [showLoadingModal, connectionError, dbInfo, showConnectionForm, connectionId]);
 
     const connectToDatabase = async (e) => {
         if (e) e.preventDefault();
@@ -63,9 +65,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         setCurrentStep(1);
         setConnectionError(null);
 
-        const connectionData = {
-            type: dbType
-        };
+        const connectionData = { type: dbType };
 
         if (dbType === "mysql") {
             connectionData.host = dbHost;
@@ -79,21 +79,19 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         try {
             const response = await fetch('http://localhost:5000/connect', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(connectionData)
             });
 
             const data = await response.json();
 
             if (data.success) {
-                setConnectionId(data.connection_id);
+                setConnectionId(data.connection_id); // Set connection ID immediately
                 setDbInfo(data.database_info);
-                // Let the loading modal complete its animation
+                // The useEffect will handle setting isConnected after the loading modal
             } else {
                 setConnectionError(data.error);
-                setCurrentStep(4); // Force completion of loading modal
+                setCurrentStep(4);
                 setTimeout(() => {
                     setShowLoadingModal(false);
                     setMessages(prevMessages => [...prevMessages, {
@@ -107,7 +105,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
             }
         } catch (error) {
             setConnectionError(error.message);
-            setCurrentStep(4); // Force completion of loading modal
+            setCurrentStep(4);
             setTimeout(() => {
                 setShowLoadingModal(false);
                 setMessages(prevMessages => [...prevMessages, {
@@ -127,9 +125,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         try {
             const response = await fetch('http://localhost:5000/disconnect', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ connection_id: connectionId })
             });
 
@@ -169,17 +165,11 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         e.preventDefault();
         if (!message.trim()) return;
 
-        // Add user message to chat
-        setMessages([...messages, {
-            id: Date.now(),
-            text: message,
-            isUser: true
-        }]);
-
+        const userMessage = { id: Date.now(), text: message, isUser: true };
+        setMessages(prevMessages => [...prevMessages, userMessage]);
         const userQuestion = message;
-        setMessage(""); // Clear input
+        setMessage("");
 
-        // If not connected to a database, show error
         if (!isConnected) {
             setMessages(prevMessages => [...prevMessages, {
                 id: Date.now(),
@@ -192,66 +182,79 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         }
 
         try {
-            // Show loading state
             setShowLoadingModal(true);
             setCurrentStep(1);
 
-            // Use the /process endpoint instead of / for better integration
+            let isVisualization = false;
+            let vizType = "line";
+            let questionToProcess = userQuestion;
+
+            if (userQuestion.toLowerCase().startsWith("/create")) {
+                isVisualization = true;
+                questionToProcess = userQuestion.slice(7).trim();
+                console.log(questionToProcess)
+                const vizMatch = questionToProcess.match(/(pie chart|line graph|bar chart|area chart)/i);
+                if (vizMatch) {
+                    vizType = vizMatch[0].toLowerCase() === "pie chart" ? "pie" :
+                        vizMatch[0].toLowerCase() === "line graph" ? "line" :
+                            vizMatch[0].toLowerCase() === "bar chart" ? "bar" :
+                                "area";
+                    questionToProcess = questionToProcess.replace(vizMatch[0], "").trim();
+                }
+            }
+
             const response = await fetch('http://localhost:5000/process', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    question: userQuestion,
+                    question: isVisualization ? `${questionToProcess} as a ${vizType === "pie" ? "pie chart" : vizType === "bar" ? "bar chart" : vizType === "area" ? "area chart" : "line graph"}` : userQuestion,
                     model: activeModel === "GPT-3.5" ? "gemini-1.5-pro" : "gemini-1.5-flash",
                     connection_id: connectionId
                 })
             });
 
             const data = await response.json();
-
-            // Hide loading modal
             setShowLoadingModal(false);
 
             if (data.success) {
-                // Format the response nicely
-                let formattedResponse = `**Query**: ${data.question}\n\n`;
-                formattedResponse += `**SQL**:\n\`\`\`sql\n${data.sql}\n\`\`\`\n\n`;
+                if (data.visualization) {
+                    setMessages(prevMessages => [...prevMessages, {
+                        id: Date.now(),
+                        text: `**Visualization**: ${data.question}\n\n**SQL**:\n\`\`\`sql\n${data.sql}\n\`\`\``,
+                        isUser: false,
+                        chartData: data.result.data || data.result,
+                        visualization: data.visualization
+                    }]);
+                } else {
 
-                // Format the results
-                formattedResponse += "**Results**:\n";
-                if (Array.isArray(data.result)) {
-                    if (data.result.length > 0) {
-                        // Create a markdown table for results
-                        const columns = Object.keys(data.result[0]);
-                        formattedResponse += "| " + columns.join(" | ") + " |\n";
-                        formattedResponse += "| " + columns.map(() => "---").join(" | ") + " |\n";
-
-                        // Limit to first 10 rows for large results
-                        const rowsToShow = data.result.length > 10 ? data.result.slice(0, 10) : data.result;
-                        rowsToShow.forEach(row => {
-                            formattedResponse += "| " + columns.map(col => row[col] !== null ? row[col] : "NULL").join(" | ") + " |\n";
-                        });
-
-                        if (data.result.length > 10) {
-                            formattedResponse += `\n*Showing 10 of ${data.result.length} rows*`;
+                    let formattedResponse = `**Query**: ${data.question}\n\n`;
+                    formattedResponse += `**SQL**:\n\`\`\`sql\n${data.sql}\n\`\`\`\n\n`;
+                    formattedResponse += "**Results**:\n";
+                    if (Array.isArray(data.result)) {
+                        if (data.result.length > 0) {
+                            const columns = Object.keys(data.result[0]);
+                            formattedResponse += "| " + columns.join(" | ") + " |\n";
+                            formattedResponse += "| " + columns.map(() => "---").join(" | ") + " |\n";
+                            data.result.slice(0, 10).forEach(row => {
+                                formattedResponse += "| " + columns.map(col => row[col] !== null ? row[col] : "NULL").join(" | ") + " |\n";
+                            });
+                            if (data.result.length > 10) {
+                                formattedResponse += `\n*Showing 10 of ${data.result.length} rows*`;
+                            }
+                        } else {
+                            formattedResponse += "No results found.";
                         }
                     } else {
-                        formattedResponse += "No results found for this query.";
+                        formattedResponse += JSON.stringify(data.result, null, 2);
                     }
-                } else {
-                    formattedResponse += JSON.stringify(data.result, null, 2);
+                    formattedResponse += `\n\n**AI Analysis**:\n${data.reasoning}`;
+
+                    setMessages(prevMessages => [...prevMessages, {
+                        id: Date.now(),
+                        text: formattedResponse,
+                        isUser: false
+                    }]);
                 }
-
-                // Add reasoning from AI
-                formattedResponse += `\n\n**AI Analysis**:\n${data.reasoning}`;
-
-                setMessages(prevMessages => [...prevMessages, {
-                    id: Date.now(),
-                    text: formattedResponse,
-                    isUser: false
-                }]);
             } else {
                 setMessages(prevMessages => [...prevMessages, {
                     id: Date.now(),
@@ -271,23 +274,16 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         }
     };
 
-    const toggleProfile = () => {
-        setIsProfileOpen(!isProfileOpen);
-    };
-
-    const handleModelClick = (model) => {
-        setActiveModel(model);
-    };
-
-    const toggleConnect = () => {
-        setIsConnectOpen(!isConnectOpen);
-    };
-
+    const toggleProfile = () => setIsProfileOpen(!isProfileOpen);
+    const handleModelClick = (model) => setActiveModel(model);
+    const toggleConnect = () => setIsConnectOpen(!isConnectOpen);
     const handleConnectOption = (type) => {
         setDbType(type);
         setShowConnectionForm(true);
         setIsConnectOpen(false);
     };
+
+
 
     return (
         <div className={`chat-interface ${isDarkMode ? "dark-mode" : ""}`}>
@@ -301,16 +297,10 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                             </button>
                             {isConnectOpen && (
                                 <div className="connect-options">
-                                    <button
-                                        className="connect-option"
-                                        onClick={() => handleConnectOption("mysql")}
-                                    >
+                                    <button className="connect-option" onClick={() => handleConnectOption("mysql")}>
                                         <Database className="icon" /> MySQL
                                     </button>
-                                    <button
-                                        className="connect-option"
-                                        onClick={() => handleConnectOption("sqlite")}
-                                    >
+                                    <button className="connect-option" onClick={() => handleConnectOption("sqlite")}>
                                         <Database className="icon" /> SQLite
                                     </button>
                                     <button className="connect-option" disabled>
@@ -329,15 +319,11 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                     )}
                 </div>
                 <div className="header-actions">
-                    <button className="icon-button">
-                        <Bell />
-                    </button>
+                    <button className="icon-button"><Bell /></button>
                     <button className="icon-button" onClick={toggleDarkMode}>
                         {isDarkMode ? <Sun /> : <Moon />}
                     </button>
-                    <button className="icon-button">
-                        <HelpCircle />
-                    </button>
+                    <button className="icon-button"><HelpCircle /></button>
                     <div className="relative">
                         <button onClick={toggleProfile} className="avatar-button">
                             <img
@@ -353,8 +339,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                                     <p className="user-email">john.doe@example.com</p>
                                 </div>
                                 <button className="sign-out-button">
-                                    <LogOut className="icon" />
-                                    Sign out
+                                    <LogOut className="icon" /> Sign out
                                 </button>
                             </div>
                         )}
@@ -367,8 +352,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         className={`model-button ${activeModel === "GPT-3.5" ? "active" : ""}`}
                         onClick={() => handleModelClick("GPT-3.5")}
                     >
-                        <Zap className="icon" />
-                        Insights
+                        <Zap className="icon" /> Insights
                     </button>
                     <button
                         className={`model-button ${activeModel === "GPT-4" ? "active" : ""}`}
@@ -382,10 +366,11 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                 {messages.length === 0 && (
                     <div className="welcome-message">
                         <h2>Welcome to Report AI</h2>
-                        <p>Connect to your database to get started. Ask questions about your data in natural language.</p>
+                        <p>Connect to your database to get started. Ask questions about your data in natural language or use <code>/create</code> for visualizations (e.g., "/create pie chart of product sales").</p>
                     </div>
                 )}
                 {messages.map((msg) => (
+
                     <div key={msg.id} className={`message-container ${msg.isUser ? 'user-message' : 'ai-message'} ${msg.isSystem ? 'system-message' : ''} ${msg.isError ? 'error-message' : ''}`}>
                         <img
                             src={msg.isUser ? "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled-vSUaWK4RimrmYxNTRggAT3c0y2qv7H.png" : "https://ui-avatars.com/api/?name=AI&background=4F46E5&color=fff"}
@@ -395,8 +380,22 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         <div className="message-bubble">
                             {msg.isSystem ? (
                                 <div className="system-message-content">{msg.text}</div>
+                            ) : msg.chartData && msg.visualization ? (
+                                <div className="visualization-message">
+                                    <div
+                                        className="message-content"
+                                        dangerouslySetInnerHTML={{
+                                            __html: msg.text
+                                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                .replace(/```sql\n([\s\S]*?)\n```/g, '<pre class="sql-block"><code>$1</code></pre>')
+                                                .replace(/\n/g, '<br/>')
+                                        }}
+                                    />
+                                    <div className="chart-container">
+                                        <ChartRenderer visualization={msg.visualization} chartData={msg.chartData} />
+                                    </div>
+                                </div>
                             ) : (
-                                // Use a simple markdown rendering for code blocks and formatting
                                 <div
                                     className="message-content"
                                     dangerouslySetInnerHTML={{
@@ -418,7 +417,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         <input
                             type="text"
                             className="message-input"
-                            placeholder={isConnected ? "Ask a question about your data..." : "Connect to a database first..."}
+                            placeholder={isConnected ? "Ask a question or use /create for visualizations..." : "Connect to a database first..."}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             disabled={!isConnected}
@@ -457,7 +456,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                             <h3>{connectionId ? "Processing Query" : "Connecting to Database"}</h3>
                             <p className="status-text">
                                 {connectionId ? (
-                                    // Processing query steps
                                     <>
                                         {currentStep === 1 && "Analyzing your question..."}
                                         {currentStep === 2 && "Generating SQL query..."}
@@ -465,7 +463,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                                         {currentStep === 4 && (connectionError ? "Error: " + connectionError : "Query complete!")}
                                     </>
                                 ) : (
-                                    // Connection steps
                                     <>
                                         {currentStep === 1 && "Authenticating credentials..."}
                                         {currentStep === 2 && "Establishing secure link..."}
@@ -489,38 +486,19 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                                 <>
                                     <div className="form-group">
                                         <label>Host:</label>
-                                        <input
-                                            type="text"
-                                            value={dbHost}
-                                            onChange={(e) => setDbHost(e.target.value)}
-                                            required
-                                        />
+                                        <input type="text" value={dbHost} onChange={(e) => setDbHost(e.target.value)} required />
                                     </div>
                                     <div className="form-group">
                                         <label>Database:</label>
-                                        <input
-                                            type="text"
-                                            value={dbName}
-                                            onChange={(e) => setDbName(e.target.value)}
-                                            required
-                                        />
+                                        <input type="text" value={dbName} onChange={(e) => setDbName(e.target.value)} required />
                                     </div>
                                     <div className="form-group">
                                         <label>Username:</label>
-                                        <input
-                                            type="text"
-                                            value={dbUser}
-                                            onChange={(e) => setDbUser(e.target.value)}
-                                            required
-                                        />
+                                        <input type="text" value={dbUser} onChange={(e) => setDbUser(e.target.value)} required />
                                     </div>
                                     <div className="form-group">
                                         <label>Password:</label>
-                                        <input
-                                            type="password"
-                                            value={dbPassword}
-                                            onChange={(e) => setDbPassword(e.target.value)}
-                                        />
+                                        <input type="password" value={dbPassword} onChange={(e) => setDbPassword(e.target.value)} />
                                     </div>
                                 </>
                             ) : (
@@ -536,17 +514,10 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                                 </div>
                             )}
                             <div className="form-actions">
-                                <button
-                                    type="button"
-                                    className="cancel-button"
-                                    onClick={() => setShowConnectionForm(false)}
-                                >
+                                <button type="button" className="cancel-button" onClick={() => setShowConnectionForm(false)}>
                                     Cancel
                                 </button>
-                                <button
-                                    type="submit"
-                                    className="connect-submit-button"
-                                >
+                                <button type="submit" className="connect-submit-button">
                                     Connect
                                 </button>
                             </div>
