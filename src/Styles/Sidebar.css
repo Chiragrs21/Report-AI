@@ -186,3 +186,50 @@
 .sidebar.dark-mode .username {
   color: #e2e8f0;
 }
+
+.chat-history {
+  margin-top: 10px;
+}
+
+.chat-history h3 {
+  font-size: 1.1em;
+  margin: 10px 0;
+}
+
+.chat-history ul {
+  list-style: none;
+  padding: 0;
+}
+
+.chat-session-item {
+  padding: 5px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.chat-session-item:hover {
+  background: #e0e0e0;
+}
+
+.dark-mode .chat-session-item:hover {
+  background: #374151;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: #e0e0e0;
+}
+
+.dark-mode .nav-item:hover {
+  background: #374151;
+}

@@ -4,7 +4,7 @@ import "../Styles/Chatinterface.css";
 import ChartRenderer from "../components/charts/ChartRender";
 import { Chart as ChartJS } from 'chart.js/auto';
 
-export function ChatInterface({ isDarkMode, toggleDarkMode }) {
+export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setConnectionId, chatSessionId, chatSessions }) {
     const [message, setMessage] = useState("");
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [activeModel, setActiveModel] = useState("GPT-3.5");
@@ -15,7 +15,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
 
     // Database connection state
     const [isConnected, setIsConnected] = useState(false);
-    const [connectionId, setConnectionId] = useState(null);
     const [dbInfo, setDbInfo] = useState(null);
     const [connectionError, setConnectionError] = useState(null);
 
@@ -28,6 +27,16 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
     const [dbPath, setDbPath] = useState("");
     const [showConnectionForm, setShowConnectionForm] = useState(false);
 
+    // Load chat session messages when chatSessionId changes
+    useEffect(() => {
+        if (chatSessionId && connectionId) {
+            loadChatSession(chatSessionId);
+        } else {
+            setMessages([]); // Clear messages if no session
+        }
+    }, [chatSessionId, connectionId]);
+
+    // Loading modal effect
     useEffect(() => {
         if (showLoadingModal && !showConnectionForm) {
             const timer = setInterval(() => {
@@ -36,7 +45,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         clearInterval(timer);
                         setTimeout(() => {
                             setShowLoadingModal(false);
-                            // Only set isConnected if connectionId is present (successful connection)
                             if (connectionId && !connectionError) {
                                 setIsConnected(true);
                                 setMessages(prevMessages => [...prevMessages, {
@@ -86,9 +94,9 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
             const data = await response.json();
 
             if (data.success) {
-                setConnectionId(data.connection_id); // Set connection ID immediately
+                console.log("ChatInterface.js: Setting connectionId to", data.connection_id);
+                setConnectionId(data.connection_id); // Update parent state
                 setDbInfo(data.database_info);
-                // The useEffect will handle setting isConnected after the loading modal
             } else {
                 setConnectionError(data.error);
                 setCurrentStep(4);
@@ -133,8 +141,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
 
             if (data.success) {
                 setIsConnected(false);
-                setConnectionId(null);
-                setDbInfo(null);
+                setConnectionId(null); // Update parent state
                 setMessages(prevMessages => [...prevMessages, {
                     id: Date.now(),
                     text: "Disconnected from database.",
@@ -161,9 +168,75 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         }
     };
 
+    const loadChatSession = async (sessionId) => {
+        try {
+            const response = await fetch(`http://localhost:5000/chat_session?connection_id=${connectionId}&chat_session_id=${sessionId}`);
+            const data = await response.json();
+            if (data.success) {
+                setMessages(data.messages.map(msg => {
+                    if (msg.visualization) {
+                        // Visualization message
+                        return {
+                            id: msg.timestamp || Date.now(),
+                            text: `**Visualization**: ${msg.question}\n\n**SQL**:\n\`\`\`sql\n${msg.sql}\n\`\`\``,
+                            isUser: false,
+                            chartData: msg.result.data || msg.result, // Ensure chart data is passed
+                            visualization: msg.visualization
+                        };
+                    } else {
+                        // Text-only message with results
+                        let formattedResponse = `**Query**: ${msg.question}\n\n`;
+                        formattedResponse += `**SQL**:\n\`\`\`sql\n${msg.sql}\n\`\`\`\n\n`;
+                        formattedResponse += "**Results**:\n";
+                        if (Array.isArray(msg.result)) {
+                            if (msg.result.length > 0) {
+                                const columns = Object.keys(msg.result[0]);
+                                formattedResponse += "| " + columns.join(" | ") + " |\n";
+                                formattedResponse += "| " + columns.map(() => "---").join(" | ") + " |\n";
+                                msg.result.slice(0, 10).forEach(row => {
+                                    formattedResponse += "| " + columns.map(col => row[col] !== null ? row[col] : "NULL").join(" | ") + " |\n";
+                                });
+                                if (msg.result.length > 10) {
+                                    formattedResponse += `\n*Showing 10 of ${msg.result.length} rows*`;
+                                }
+                            } else {
+                                formattedResponse += "No results found.";
+                            }
+                        } else {
+                            formattedResponse += JSON.stringify(msg.result, null, 2);
+                        }
+                        formattedResponse += `\n\n**AI Analysis**:\n${msg.reasoning || 'No additional analysis provided.'}`;
+
+                        return {
+                            id: msg.timestamp || Date.now(),
+                            text: formattedResponse,
+                            isUser: false
+                        };
+                    }
+                }));
+            } else {
+                setMessages(prevMessages => [...prevMessages, {
+                    id: Date.now(),
+                    text: `Error loading chat session: ${data.error}`,
+                    isUser: false,
+                    isSystem: true,
+                    isError: true
+                }]);
+            }
+        } catch (error) {
+            setMessages(prevMessages => [...prevMessages, {
+                id: Date.now(),
+                text: `Error loading chat session: ${error.message}`,
+                isUser: false,
+                isSystem: true,
+                isError: true
+            }]);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!message.trim()) return;
+        if (!message.trim() || !chatSessionId) return;
 
         const userMessage = { id: Date.now(), text: message, isUser: true };
         setMessages(prevMessages => [...prevMessages, userMessage]);
@@ -192,7 +265,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
             if (userQuestion.toLowerCase().startsWith("/create")) {
                 isVisualization = true;
                 questionToProcess = userQuestion.slice(7).trim();
-                console.log(questionToProcess)
                 const vizMatch = questionToProcess.match(/(pie chart|line graph|bar chart|area chart)/i);
                 if (vizMatch) {
                     vizType = vizMatch[0].toLowerCase() === "pie chart" ? "pie" :
@@ -209,7 +281,8 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                 body: JSON.stringify({
                     question: isVisualization ? `${questionToProcess} as a ${vizType === "pie" ? "pie chart" : vizType === "bar" ? "bar chart" : vizType === "area" ? "area chart" : "line graph"}` : userQuestion,
                     model: activeModel === "GPT-3.5" ? "gemini-1.5-pro" : "gemini-1.5-flash",
-                    connection_id: connectionId
+                    connection_id: connectionId,
+                    chat_session_id: chatSessionId
                 })
             });
 
@@ -226,7 +299,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         visualization: data.visualization
                     }]);
                 } else {
-
                     let formattedResponse = `**Query**: ${data.question}\n\n`;
                     formattedResponse += `**SQL**:\n\`\`\`sql\n${data.sql}\n\`\`\`\n\n`;
                     formattedResponse += "**Results**:\n";
@@ -282,8 +354,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
         setShowConnectionForm(true);
         setIsConnectOpen(false);
     };
-
-
 
     return (
         <div className={`chat-interface ${isDarkMode ? "dark-mode" : ""}`}>
@@ -370,7 +440,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                     </div>
                 )}
                 {messages.map((msg) => (
-
                     <div key={msg.id} className={`message-container ${msg.isUser ? 'user-message' : 'ai-message'} ${msg.isSystem ? 'system-message' : ''} ${msg.isError ? 'error-message' : ''}`}>
                         <img
                             src={msg.isUser ? "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled-vSUaWK4RimrmYxNTRggAT3c0y2qv7H.png" : "https://ui-avatars.com/api/?name=AI&background=4F46E5&color=fff"}
@@ -417,12 +486,12 @@ export function ChatInterface({ isDarkMode, toggleDarkMode }) {
                         <input
                             type="text"
                             className="message-input"
-                            placeholder={isConnected ? "Ask a question or use /create for visualizations..." : "Connect to a database first..."}
+                            placeholder={isConnected && chatSessionId ? "Ask a question or use /create for visualizations..." : isConnected ? "Start a new chat to begin..." : "Connect to a database first..."}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            disabled={!isConnected}
+                            disabled={!isConnected || !chatSessionId}
                         />
-                        <button type="submit" className="submit-button" disabled={!isConnected}>
+                        <button type="submit" className="submit-button" disabled={!isConnected || !chatSessionId}>
                             <ArrowRight className="submit-icon" />
                         </button>
                     </div>

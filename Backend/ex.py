@@ -37,11 +37,11 @@ if not gemini_api_key:
 
 # MongoDB setup
 mongo_client = MongoClient('mongodb://localhost:27017/')
-mongo_db = mongo_client['report_ai']
+mongo_db = mongo_client['report_ai']  # Match your current DB name
 chat_sessions_collection = mongo_db['chat_sessions']
 connections_collection = mongo_db['connections']
 
-# Store active connections
+# Store active connections (in-memory, synced with MongoDB)
 active_connections = {}
 
 # Connection timeout (in seconds)
@@ -136,9 +136,11 @@ def connect_to_database():
         logger.info(f"Received connection data: {data}")
         db_type = data.get('type', 'mysql')
 
+        # Generate connection key for reuse
         connection_key = f"{db_type}:{data.get('host', '')}:{data.get('database', '')}:{data.get('user', '')}:{data.get('path', '')}"
         logger.info(f"Generated connection key: {connection_key}")
 
+        # Check for existing connection in MongoDB
         existing_conn = connections_collection.find_one(
             {'connection_key': connection_key})
         if existing_conn:
@@ -194,6 +196,7 @@ def connect_to_database():
             agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         )
 
+        # Store in active_connections
         active_connections[connection_id] = {
             'connection': connection,
             'engine': engine,
@@ -206,6 +209,7 @@ def connect_to_database():
             'last_used': time.time()
         }
 
+        # If new connection, save to MongoDB
         if not existing_conn:
             connections_collection.insert_one({
                 'connection_id': connection_id,
@@ -256,7 +260,6 @@ def new_chat():
     try:
         data = request.get_json()
         connection_id = data.get('connection_id')
-        name = data.get('name', 'Unnamed Chat')  # Default name if not provided
         if not connection_id or not connections_collection.find_one({'connection_id': connection_id}):
             return jsonify({'success': False, 'error': 'Invalid connection ID'}), 400
 
@@ -264,14 +267,13 @@ def new_chat():
         chat_session = {
             'connection_id': connection_id,
             'chat_session_id': chat_session_id,
-            'name': name,  # Store the chat session name
             'start_time': time.time(),
             'messages': []
         }
         chat_sessions_collection.insert_one(chat_session)
         logger.info(
-            f"New chat created with connection_id: {connection_id}, chat_session_id: {chat_session_id}, name: {name}")
-        return jsonify({'success': True, 'chat_session_id': chat_session_id, 'name': name}), 200
+            f"New chat created with connection_id: {connection_id}, chat_session_id: {chat_session_id}")
+        return jsonify({'success': True, 'chat_session_id': chat_session_id}), 200
     except Exception as e:
         logger.error(f"New chat error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -288,8 +290,7 @@ def get_chat_history():
             f"Fetching chat history for connection_id: {connection_id}")
         sessions = list(chat_sessions_collection.find(
             {'connection_id': connection_id},
-            {'chat_session_id': 1, 'name': 1, 'start_time': 1,
-                'messages': {'$slice': -1}}  # Include name
+            {'chat_session_id': 1, 'start_time': 1, 'messages': {'$slice': -1}}
         ).sort('start_time', -1))
 
         logger.info(
@@ -371,7 +372,6 @@ def process_question():
             "Return only the SQL query inside ```sql``` tags.\n"
             "Note: Do not use LIMIT inside IN, ALL, ANY, or SOME subqueries."
         )
-        logger.debug(f"Prompt: {prompt}")
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -397,7 +397,7 @@ def process_question():
         logger.debug(f"Raw result: {result}")
 
         formatted_result = format_for_visualization(
-            sql_query, result, viz_type) if viz_type else result
+            sql_query, result, viz_type) if viz_type else result  # Fixed vz_type to viz_type
         logger.debug(f"Formatted result: {formatted_result}")
 
         full_response = {
