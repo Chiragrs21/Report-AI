@@ -394,11 +394,9 @@ def process_question():
             return jsonify({'success': False, 'error': 'Failed to generate SQL query', 'agent_response': str(agent_response)}), 500
 
         result = execute_query(connection_data, sql_query)
-        logger.debug(f"Raw result: {result}")
 
         formatted_result = format_for_visualization(
             sql_query, result, viz_type) if viz_type else result
-        logger.debug(f"Formatted result: {formatted_result}")
 
         full_response = {
             'question': question,

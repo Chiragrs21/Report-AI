@@ -87,14 +87,16 @@ export function Sidebar({ isDarkMode, connectionId, setChatSessionId, fetchChatH
                             <div className="chat-history">
                                 <h3>Previous Chats</h3>
                                 <ul>
-                                    {chatSessions.map(session => (
-                                        <li
-                                            key={session.chat_session_id}
-                                            onClick={() => loadChatSession(session.chat_session_id)}
-                                            className="chat-session-item"
-                                        >
-                                            {!session.name ? "new Chat" : session.name} ({new Date(session.start_time * 1000).toLocaleDateString()})
-                                        </li>
+                                    {chatSessions.map((session, index) => (
+                                        <React.Fragment key={session.chat_session_id}>
+                                            <li
+                                                onClick={() => loadChatSession(session.chat_session_id)}
+                                                className="chat-session-item"
+                                            >
+                                                {!session.name ? "New chat" : session.name} ({new Date(session.start_time * 1000).toLocaleDateString()})
+                                            </li>
+                                            {index < chatSessions.length - 1 && <hr className="chat-separator" />}
+                                        </React.Fragment>
                                     ))}
                                 </ul>
                             </div>

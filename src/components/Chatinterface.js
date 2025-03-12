@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Bell, HelpCircle, Moon, Search, ArrowRight, Sun, LogOut, Database, FileSpreadsheet, ChevronDown, Zap } from "lucide-react";
+import { Bell, HelpCircle, Moon, Search, ArrowRight, Sun, LogOut, Database, FileSpreadsheet, ChevronDown, Zap, Settings } from "lucide-react";
 import "../Styles/Chatinterface.css";
 import ChartRenderer from "../components/charts/ChartRender";
-import { Chart as ChartJS } from 'chart.js/auto';
+import { useNavigate } from 'react-router-dom';
 
 export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setConnectionId, chatSessionId, chatSessions }) {
+
+    const navigate = useNavigate();
+
     const [message, setMessage] = useState("");
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [activeModel, setActiveModel] = useState("GPT-3.5");
@@ -234,6 +237,10 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
         }
     };
 
+    const handleSettingsClick = () => {
+        navigate('/settings');
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!message.trim() || !chatSessionId) return;
@@ -389,7 +396,9 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
                     )}
                 </div>
                 <div className="header-actions">
-                    <button className="icon-button"><Bell /></button>
+                    <button className="icon-button" onClick={handleSettingsClick}>
+                        <Settings />
+                    </button>
                     <button className="icon-button" onClick={toggleDarkMode}>
                         {isDarkMode ? <Sun /> : <Moon />}
                     </button>

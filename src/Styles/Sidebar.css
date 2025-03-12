@@ -202,9 +202,9 @@
 }
 
 .chat-session-item {
-  padding: 5px;
+  padding: 10px;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .chat-session-item:hover {

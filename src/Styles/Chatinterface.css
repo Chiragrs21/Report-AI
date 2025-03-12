@@ -769,7 +769,7 @@
 
 /* System messages */
 .system-message {
-  background-color: #f7fafc;
+  background-color: #f4f7fe;
   border-radius: 8px;
   margin: 8px 0;
 }
@@ -940,4 +940,28 @@
 
 .dark-mode .ai-message .message-bubble {
   background-color: #276749;
+}
+
+/* Chatinterface.css */
+.settings-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background-color: #4f46e5;
+  color: white;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.settings-button:hover {
+  background-color: #4338ca;
+}
+
+.settings-content {
+  padding: 20px;
+  text-align: center;
 }
