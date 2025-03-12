@@ -18,6 +18,7 @@ from langchain.agents.agent_toolkits import SQLDatabaseToolkit
 from dotenv import load_dotenv
 from urllib.parse import quote
 from sqlalchemy import create_engine
+from sqlalchemy import text
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -227,6 +228,98 @@ def connect_to_database():
     except Exception as e:
         logger.error(f"Connect error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/schema', methods=['GET'])
+def get_schema():
+    try:
+        connection_id = request.args.get('connection_id')
+        if not connection_id or connection_id not in active_connections:
+            return jsonify({'success': False, 'error': 'Invalid connection ID'}), 400
+
+        connection_data = active_connections[connection_id]
+        db_type = connection_data['type']
+        engine = connection_data['engine']
+
+        schema_data = {'tables': {}}
+
+        with engine.connect() as conn:
+            if db_type == 'mysql':
+                # Fetch tables
+                tables_result = conn.execute(text("SHOW TABLES")).fetchall()
+                tables = [row[0] for row in tables_result]
+
+                for table in tables:
+                    # Fetch columns (DESCRIBE returns a result set with named columns)
+                    columns_result = conn.execute(
+                        text(f"DESCRIBE {table}")).mappings().fetchall()
+                    columns = [
+                        {'name': row['Field'],
+                            'type': row['Type'], 'key': row['Key']}
+                        for row in columns_result
+                    ]
+
+                    # Fetch foreign keys
+                    fk_result = conn.execute(text(f"""
+                        SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+                        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                        WHERE TABLE_NAME = '{table}' AND REFERENCED_TABLE_NAME IS NOT NULL
+                    """)).mappings().fetchall()
+                    foreign_keys = [
+                        {
+                            'column': row['COLUMN_NAME'],
+                            'ref_table': row['REFERENCED_TABLE_NAME'],
+                            'ref_column': row['REFERENCED_COLUMN_NAME']
+                        }
+                        for row in fk_result
+                    ]
+
+                    schema_data['tables'][table] = {
+                        'columns': columns,
+                        'foreign_keys': foreign_keys
+                    }
+
+            elif db_type == 'sqlite':
+                # Fetch tables
+                tables_result = conn.execute(
+                    text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+                tables = [row[0]
+                          for row in tables_result if row[0] != 'sqlite_sequence']
+
+                for table in tables:
+                    # Fetch columns
+                    columns_result = conn.execute(
+                        text(f"PRAGMA table_info({table})")).mappings().fetchall()
+                    columns = [
+                        {'name': row['name'], 'type': row['type'],
+                            'key': 'PRI' if row['pk'] else ''}
+                        for row in columns_result
+                    ]
+
+                    # Fetch foreign keys
+                    fk_result = conn.execute(
+                        text(f"PRAGMA foreign_key_list({table})")).mappings().fetchall()
+                    foreign_keys = [
+                        {
+                            'column': row['from'],
+                            'ref_table': row['table'],
+                            'ref_column': row['to']
+                        }
+                        for row in fk_result
+                    ]
+
+                    schema_data['tables'][table] = {
+                        'columns': columns,
+                        'foreign_keys': foreign_keys
+                    }
+
+        connection_data['last_used'] = time.time()
+        logger.info(f"Schema fetched for connection_id: {connection_id}")
+        return jsonify({'success': True, 'schema': schema_data}), 200
+
+    except Exception as e:
+        logger.error(f"Schema fetch error: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 
 @app.route('/disconnect', methods=['POST'])

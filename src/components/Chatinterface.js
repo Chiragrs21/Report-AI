@@ -30,7 +30,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
     const [dbPath, setDbPath] = useState("");
     const [showConnectionForm, setShowConnectionForm] = useState(false);
 
-    // Load chat session messages when chatSessionId changes
     useEffect(() => {
         if (chatSessionId && connectionId) {
             loadChatSession(chatSessionId);

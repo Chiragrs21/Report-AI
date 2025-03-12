@@ -1,0 +1,277 @@
+/* Add styles for relationship paths */
+.link {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-width 0.2s, opacity 0.2s;
+}
+
+.link:hover {
+  stroke-width: 2.5px !important;
+  opacity: 1 !important;
+}
+
+.chat-interface {
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.dark-mode {
+  --bg-color: #1a1a1a;
+  --text-color: #ffffff;
+  --header-bg: #2d2d2d;
+  --button-bg: #3d3d3d;
+  --button-hover: #4d4d4d;
+  --dropdown-bg: #2d2d2d;
+  --border-color: #404040;
+}
+
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --header-bg: #f8f9fa;
+  --button-bg: #e9ecef;
+  --button-hover: #dee2e6;
+  --dropdown-bg: #ffffff;
+  --border-color: #dee2e6;
+}
+
+.main-header {
+  background-color: var(--header-bg);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+}
+
+.icon-button:hover {
+  background-color: var(--button-hover);
+}
+
+.avatar-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background-color: var(--dropdown-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  min-width: 200px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.user-info {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.user-name {
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+}
+
+.user-email {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.sign-out-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  color: #dc3545;
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+
+.sign-out-button:hover {
+  background-color: var(--button-hover);
+}
+
+.model-selector {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.model-buttons {
+  display: flex;
+  gap: 1rem;
+  background-color: var(--button-bg);
+  padding: 0.25rem;
+  border-radius: 2rem;
+}
+
+.model-button {
+  padding: 0.5rem 1.5rem;
+  border: none;
+  background: none;
+  border-radius: 1.5rem;
+  cursor: pointer;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.model-button.active {
+  background-color: var(--bg-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.settings-content {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.connect-dropdown {
+  position: relative;
+}
+
+.connect-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--button-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  color: var(--text-color);
+}
+
+.connect-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: var(--dropdown-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  min-width: 200px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.connect-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  color: var(--text-color);
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+
+.connect-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.connect-option:not(:disabled):hover {
+  background-color: var(--button-hover);
+}
+
+.connection-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.disconnect-button {
+  padding: 0.25rem 0.75rem;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.disconnect-button:hover {
+  background-color: #c82333;
+}
+
+.tooltip {
+  position: absolute;
+  background-color: var(--dropdown-bg);
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+svg {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-color);
+}
+
+.settings-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--button-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.settings-button:hover {
+  background-color: var(--button-hover);
+}
+
+/* Add styles for relationship tooltips */
+.relationship-tooltip {
+  position: absolute;
+  background-color: var(--dropdown-bg);
+  color: var(--text-color);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  white-space: nowrap;
+}
