@@ -1,5 +1,6 @@
+// src/components/Dashboard.js
 import React, { useState, useEffect } from "react";
-import { ArrowRight, ChevronRight, ChevronLeft, ShoppingCart } from "lucide-react";
+import { ArrowRight, ChevronRight, ChevronLeft, ShoppingCart, Clock } from "lucide-react";
 import { WidthProvider, Responsive } from "react-grid-layout";
 import ChartRenderer from "../components/charts/ChartRender";
 import "react-grid-layout/css/styles.css";
@@ -8,21 +9,15 @@ import "../Styles/Dashboard.css";
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const calculateLayout = (components, containerWidth) => {
-    const layout = components.map((comp, index) => {
-        // Calculate optimal grid positions
-        const cols = containerWidth >= 1200 ? 3 : containerWidth >= 768 ? 2 : 1;
-        const columnWidth = Math.floor(12 / cols);
-
-        return {
-            i: comp.component_id || `comp-${index}`,
-            x: (index % cols) * columnWidth,
-            y: Math.floor(index / cols) * 4,
-            w: columnWidth,
-            h: 4,
-            minW: 3,
-            minH: 3
-        };
-    });
+    const layout = components.map((comp, index) => ({
+        i: comp.component_id || `comp-${index}`,
+        x: comp.x || (index % 2) * 6,
+        y: comp.y || Math.floor(index / 2) * 3,
+        w: comp.w || (comp.visualization === "card" ? 3 : 6),
+        h: comp.h || (comp.visualization === "card" ? 2 : 3),
+        minW: comp.visualization === "card" ? 3 : 3,
+        minH: comp.visualization === "card" ? 2 : 3,
+    }));
     return layout;
 };
 
@@ -39,40 +34,143 @@ export function DashboardContent({
     const [prompt, setPrompt] = useState("");
     const [cartComponents, setCartComponents] = useState([]);
     const [dashboardData, setDashboardData] = useState(null);
-    const [selectedComponents, setSelectedComponents] = useState([]); // Add this
-    const [suggestions, setSuggestions] = useState([]); // Add this
+    const [dashboardHistory, setDashboardHistory] = useState([]);
+    const [selectedComponents, setSelectedComponents] = useState([]);
+    const [suggestions, setSuggestions] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     const availableComponents = [
+        { id: "card", label: "Metric Card", icon: "📊" },
         { id: "pie", label: "Pie Chart", icon: "📊" },
         { id: "bar", label: "Bar Chart", icon: "📈" },
         { id: "line", label: "Line Chart", icon: "📉" },
-        { id: "table", label: "Table", icon: "📋" }
+        { id: "table", label: "Table", icon: "📋" },
     ];
 
+    // Fetch dashboard history
     useEffect(() => {
-        console.log("dashboardData:", dashboardData);
-        if (dashboardData && dashboardData.layout) {
-            dashboardData.layout.forEach((component, index) => {
-                console.log(`Component ${index}:`, component);
-            });
-        }
-    }, [dashboardData]);
+        const fetchDashboardHistory = async () => {
+            if (!chatSessionId) return;
 
-    const handleComponentChange = (component) => {
-        setSelectedComponents((prev) =>
-            prev.includes(component) ? prev.filter((c) => c !== component) : [...prev, component]
-        );
+            try {
+                const response = await fetch(
+                    `http://localhost:5000/get_dashboard_history?chat_session_id=${chatSessionId}`
+                );
+                const data = await response.json();
+                console.log("API Response:", data); // Debug log
+                if (data.success) {
+                    setDashboardHistory(data.history || []);
+                    // Handle both old flat array and new wrapped structure
+                    if (data.history && data.history.length > 0) {
+                        const latestDashboard = Array.isArray(data.history[0])
+                            ? data.history[0] // Old flat array
+                            : data.history[0]?.components || []; // New wrapped structure
+                        setDashboardData({
+                            layout: latestDashboard,
+                            results: latestDashboard,
+                        });
+                    } else {
+                        setDashboardData(null);
+                    }
+                } else {
+                    console.error("Failed to fetch dashboard history:", data.error);
+                    setDashboardHistory([]);
+                    setDashboardData(null);
+                }
+            } catch (error) {
+                console.error("Error fetching dashboard history:", error);
+                setDashboardHistory([]);
+                setDashboardData(null);
+            }
+        };
+
+        fetchDashboardHistory();
+    }, [chatSessionId]);
+
+    // Update history after creating a new dashboard
+    useEffect(() => {
+        if (dashboardData && chatSessionId) {
+            const fetchUpdatedHistory = async () => {
+                try {
+                    const response = await fetch(
+                        `http://localhost:5000/get_dashboard_history?chat_session_id=${chatSessionId}`
+                    );
+                    const data = await response.json();
+                    console.log("Updated API Response:", data); // Debug log
+                    if (data.success) {
+                        setDashboardHistory(data.history || []);
+                    } else {
+                        console.error("Failed to fetch updated history:", data.error);
+                        setDashboardHistory([]);
+                    }
+                } catch (error) {
+                    console.error("Error fetching updated history:", error);
+                    setDashboardHistory([]);
+                }
+            };
+            fetchUpdatedHistory();
+        }
+    }, [dashboardData, chatSessionId]);
+
+    const handleAddToCart = (componentId) => {
+        setCartComponents((prev) => {
+            const existing = prev.find((c) => c.id === componentId);
+            if (existing) {
+                return prev.map((c) =>
+                    c.id === componentId ? { ...c, quantity: c.quantity + 1 } : c
+                );
+            }
+            return [...prev, { id: componentId, quantity: 1 }];
+        });
+    };
+
+    const handleRemoveFromCart = (componentId) => {
+        setCartComponents((prev) => {
+            const existing = prev.find((c) => c.id === componentId);
+            if (existing.quantity > 1) {
+                return prev.map((c) =>
+                    c.id === componentId ? { ...c, quantity: c.quantity - 1 } : c
+                );
+            }
+            return prev.filter((c) => c.id !== componentId);
+        });
+    };
+
+    const handleQuantityChange = (componentId, newQuantity) => {
+        setCartComponents((prev) => {
+            if (newQuantity <= 0) {
+                return prev.filter((c) => c.id !== componentId);
+            }
+            return prev.map((c) =>
+                c.id === componentId ? { ...c, quantity: newQuantity } : c
+            );
+        });
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!prompt.trim() || cartComponents.length === 0 || !chatSessionId || !connectionId) {
+
+        if (cartComponents.length === 0) {
+            setIsSidebarOpen(true);
             setMessages((prev) => [
                 ...prev,
                 {
                     id: Date.now(),
-                    text: "Please fill in the prompt and select at least one component.",
+                    text: "Please select at least one component from the sidebar before creating a dashboard.",
+                    isUser: false,
+                    isSystem: true,
+                    isError: true,
+                },
+            ]);
+            return;
+        }
+
+        if (!prompt.trim() || !chatSessionId || !connectionId) {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: Date.now(),
+                    text: "Please fill in the prompt and ensure you're connected.",
                     isUser: false,
                     isSystem: true,
                     isError: true,
@@ -85,6 +183,10 @@ export function DashboardContent({
         setCurrentStep(1);
 
         try {
+            const componentsToSend = cartComponents.flatMap((comp) =>
+                Array(comp.quantity).fill(comp.id)
+            );
+
             const response = await fetch("http://localhost:5000/create_dashboard", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -92,7 +194,7 @@ export function DashboardContent({
                     prompt,
                     connection_id: connectionId,
                     chat_session_id: chatSessionId,
-                    components: cartComponents,
+                    components: componentsToSend,
                 }),
             });
 
@@ -105,13 +207,25 @@ export function DashboardContent({
             } else {
                 setMessages((prev) => [
                     ...prev,
-                    { id: Date.now(), text: `Error creating dashboard: ${data.error}`, isUser: false, isSystem: true, isError: true },
+                    {
+                        id: Date.now(),
+                        text: `Error creating dashboard: ${data.error}`,
+                        isUser: false,
+                        isSystem: true,
+                        isError: true,
+                    },
                 ]);
             }
         } catch (error) {
             setMessages((prev) => [
                 ...prev,
-                { id: Date.now(), text: `Error: ${error.message}`, isUser: false, isSystem: true, isError: true },
+                {
+                    id: Date.now(),
+                    text: `Error: ${error.message}`,
+                    isUser: false,
+                    isSystem: true,
+                    isError: true,
+                },
             ]);
             console.error("Fetch Error:", error);
         } finally {
@@ -154,19 +268,55 @@ export function DashboardContent({
         );
     };
 
-    const handleAddToCart = (component) => {
-        if (!cartComponents.includes(component)) {
-            setCartComponents([...cartComponents, component]);
-        }
-    };
+    const totalComponentCount = cartComponents.reduce(
+        (sum, comp) => sum + comp.quantity,
+        0
+    );
 
-    const handleRemoveFromCart = (component) => {
-        setCartComponents(cartComponents.filter(c => c !== component));
+    const handleSelectHistory = (historyItem) => {
+        const components = Array.isArray(historyItem) ? historyItem : historyItem?.components || [];
+        setDashboardData({
+            layout: components,
+            results: components,
+        });
     };
 
     return (
         <div className="dashboard-layout">
-            <div className={`dashboard-main ${!isSidebarOpen ? 'expanded' : ''}`}>
+            <div className={`dashboard-main ${!isSidebarOpen ? "expanded" : ""}`}>
+                <div className="dashboard-history">
+                    <h3>Recent Dashboards</h3>
+                    {dashboardHistory.length > 0 ? (
+                        <div className="history-list">
+                            {dashboardHistory.map((item, index) => (
+                                <div
+                                    key={index}
+                                    className="history-item"
+                                    onClick={() => handleSelectHistory(item)}
+                                >
+                                    {/* <Clock className="history-icon" /> */}
+                                    {/* <span className="history-prompt">
+                                        {Array.isArray(item)
+                                            ? item[0]?.question || "Untitled Dashboard"
+                                            : item.prompt || item?.components[0]?.question || "Untitled Dashboard"}
+                                    </span> */}
+                                    {/* <span className="history-timestamp">
+                                        {Array.isArray(item)
+                                            ? item[0]?.timestamp
+                                                ? new Date(item[0].timestamp * 1000).toLocaleString()
+                                                : new Date().toLocaleString()
+                                            : item.timestamp
+                                                ? new Date(item.timestamp * 1000).toLocaleString()
+                                                : new Date().toLocaleString()}
+                                    </span> */}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p>No recent dashboards available.</p>
+                    )}
+                </div>
+
                 {!dashboardData ? (
                     <>
                         <div className="welcome-message">
@@ -187,7 +337,12 @@ export function DashboardContent({
                                     <button
                                         type="submit"
                                         className="submit-button"
-                                        disabled={!connectionId || !chatSessionId || !prompt.trim() || cartComponents.length === 0}
+                                        disabled={
+                                            !connectionId ||
+                                            !chatSessionId ||
+                                            !prompt.trim() ||
+                                            cartComponents.length === 0
+                                        }
                                     >
                                         <ArrowRight className="submit-icon" />
                                     </button>
@@ -206,7 +361,7 @@ export function DashboardContent({
                         >
                             Export to Excel
                         </button>
-                        <div style={{ width: '100%', height: 'auto' }}>
+                        <div style={{ width: "100%", height: "auto" }}>
                             <ResponsiveGridLayout
                                 className="dashboard-grid"
                                 layouts={{
@@ -214,7 +369,7 @@ export function DashboardContent({
                                     md: calculateLayout(dashboardData.layout, 996),
                                     sm: calculateLayout(dashboardData.layout, 768),
                                     xs: calculateLayout(dashboardData.layout, 480),
-                                    xxs: calculateLayout(dashboardData.layout, 0)
+                                    xxs: calculateLayout(dashboardData.layout, 0),
                                 }}
                                 breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
                                 cols={{ lg: 12, md: 9, sm: 6, xs: 4, xxs: 2 }}
@@ -226,10 +381,14 @@ export function DashboardContent({
                                 containerPadding={[20, 20]}
                                 onLayoutChange={(newLayout) => {
                                     const updatedLayout = dashboardData.layout.map((comp) => {
-                                        const layoutItem = newLayout.find((item) => item.i === comp.component_id);
-                                        return layoutItem ? { ...comp, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h } : comp;
+                                        const layoutItem = newLayout.find(
+                                            (item) => item.i === comp.component_id
+                                        );
+                                        return layoutItem
+                                            ? { ...comp, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h }
+                                            : comp;
                                     });
-                                    setDashboardData(prev => ({ ...prev, layout: updatedLayout }));
+                                    setDashboardData((prev) => ({ ...prev, layout: updatedLayout }));
                                     saveLayout(updatedLayout);
                                 }}
                                 useCSSTransforms={true}
@@ -245,7 +404,7 @@ export function DashboardContent({
                                             w: component.w || 4,
                                             h: component.h || 4,
                                             minW: 3,
-                                            minH: 3
+                                            minH: 3,
                                         }}
                                     >
                                         <h3>
@@ -271,59 +430,74 @@ export function DashboardContent({
                 )}
             </div>
 
-            <div className={`components-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-                <button
-                    className="sidebar-toggle"
-                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                >
+            <div className={`components-sidebar ${isSidebarOpen ? "open" : "closed"}`}>
+                <button className="sidebar-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
                     {isSidebarOpen ? <ChevronRight /> : <ChevronLeft />}
                 </button>
 
                 <div className="cart-counter">
                     <ShoppingCart />
-                    <span className="counter">{cartComponents.length}</span>
+                    <span className="counter">{totalComponentCount}</span>
                 </div>
 
                 <div className="sidebar-content">
                     <h3>Available Components</h3>
                     <div className="component-list">
-                        {availableComponents.map(comp => (
-                            <div
-                                key={comp.id}
-                                className={`component-item ${cartComponents.includes(comp.id) ? 'selected' : ''}`}
-                                onClick={() => cartComponents.includes(comp.id) ?
-                                    handleRemoveFromCart(comp.id) :
-                                    handleAddToCart(comp.id)}
-                            >
-                                <span className="component-icon">{comp.icon}</span>
-                                <span className="component-label">{comp.label}</span>
-                                {cartComponents.includes(comp.id) ? (
-                                    <span className="added-badge">Added</span>
-                                ) : (
-                                    <span className="add-badge">+ Add</span>
-                                )}
-                            </div>
-                        ))}
+                        {availableComponents.map((comp) => {
+                            const inCart = cartComponents.find((c) => c.id === comp.id);
+                            return (
+                                <div
+                                    key={comp.id}
+                                    className={`component-item ${inCart ? "selected" : ""}`}
+                                    onClick={() => (inCart ? null : handleAddToCart(comp.id))}
+                                >
+                                    <span className="component-icon">{comp.icon}</span>
+                                    <span className="component-label">{comp.label}</span>
+                                    {inCart ? (
+                                        <span className="added-badge">Added</span>
+                                    ) : (
+                                        <span className="add-badge">+ Add</span>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {cartComponents.length > 0 && (
                         <div className="component-cart">
                             <h3>Selected Components</h3>
                             <div className="cart-items">
-                                {cartComponents.map(id => {
-                                    const comp = availableComponents.find(c => c.id === id);
+                                {cartComponents.map((comp) => {
+                                    const compInfo = availableComponents.find((c) => c.id === comp.id);
                                     return (
-                                        <div key={id} className="cart-item">
+                                        <div key={comp.id} className="cart-item">
                                             <span className="item-info">
-                                                <span className="item-icon">{comp.icon}</span>
-                                                <span className="item-label">{comp.label}</span>
+                                                <span className="item-icon">{compInfo.icon}</span>
+                                                <span className="item-label">{compInfo.label}</span>
                                             </span>
-                                            <button
-                                                className="remove-button"
-                                                onClick={() => handleRemoveFromCart(id)}
-                                            >
-                                                ×
-                                            </button>
+                                            <div className="quantity-selector">
+                                                <button
+                                                    onClick={() => handleRemoveFromCart(comp.id)}
+                                                    className="quantity-button"
+                                                >
+                                                    -
+                                                </button>
+                                                <input
+                                                    type="number"
+                                                    value={comp.quantity}
+                                                    onChange={(e) =>
+                                                        handleQuantityChange(comp.id, parseInt(e.target.value) || 0)
+                                                    }
+                                                    min="0"
+                                                    className="quantity-input"
+                                                />
+                                                <button
+                                                    onClick={() => handleAddToCart(comp.id)}
+                                                    className="quantity-button"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
                                         </div>
                                     );
                                 })}

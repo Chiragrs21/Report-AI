@@ -134,6 +134,7 @@ def format_for_visualization(sql_query: str, result: list, viz_type: str) -> dic
     return {"data": result}
 
 
+# app.py (Updated /create_dashboard)
 @app.route('/create_dashboard', methods=['POST'])
 def create_dashboard():
     try:
@@ -141,27 +142,32 @@ def create_dashboard():
         prompt = data.get('prompt')
         connection_id = data.get('connection_id')
         chat_session_id = data.get('chat_session_id')
+        # ["card", "card", "pie", ...]
         selected_components = data.get('components', [])
 
         if not all([prompt, connection_id, chat_session_id, selected_components]):
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
         if connection_id not in active_connections:
             return jsonify({'success': False, 'error': 'Invalid connection ID'}), 400
-        if not all(comp in AVAILABLE_COMPONENTS for comp in selected_components):
+        if not all(comp in AVAILABLE_COMPONENTS + ["card"] for comp in selected_components):
             return jsonify({'success': False, 'error': 'Invalid component selected'}), 400
 
         connection_data = active_connections[connection_id]
         llm = connection_data['llm']
         schema_cache = connection_data['schema_cache']
 
+        # Classify data requirements for each component
         ai_prompt = (
             f"Given the database schema:\n{schema_cache}\n"
             f"For the user prompt: '{prompt}'\n"
             f"User selected components: {', '.join(selected_components)}\n"
             "For each selected component:\n"
             "1. Confirm if the component is suitable for the prompt and data.\n"
-            "2. If suitable, generate a SQL query with 'label' and 'value' aliases where applicable.\n"
-            "3. If not suitable, suggest an alternative component from {', '.join(AVAILABLE_COMPONENTS)} with reasoning.\n"
+            "2. If suitable, generate a SQL query:\n"
+            "   - For 'card' components: Return a single value with 'title' and 'value' (e.g., total revenue, user count).\n"
+            "   - For 'pie', 'bar', 'line', 'area': Return 'label' and 'value' columns.\n"
+            "   - For 'table': Return full table data.\n"
+            "3. If not suitable, suggest an alternative component from {', '.join(AVAILABLE_COMPONENTS + ['card'])} with reasoning.\n"
             "Return the response in this JSON format:\n"
             "```json\n"
             "{\n"
@@ -174,7 +180,6 @@ def create_dashboard():
         )
 
         agent_response = llm.invoke(ai_prompt)
-        # logger.debug(f"Raw Gemini response: {agent_response.content}")
         json_match = re.search(
             r"```json\s*([\s\S]*?)\s*```", agent_response.content, re.IGNORECASE)
         if not json_match:
@@ -183,7 +188,6 @@ def create_dashboard():
 
         json_str = json_match.group(1).strip()
         json_str = re.sub(r'\}\s*[^}]*$', '}', json_str)
-        # logger.debug(f"Extracted JSON string: {json_str}")
 
         try:
             ai_result = json.loads(json_str)
@@ -191,7 +195,6 @@ def create_dashboard():
             logger.error(f"Failed to parse JSON: {json_str}, Error: {str(e)}")
             return jsonify({'success': False, 'error': f'Failed to parse AI response: Invalid JSON - {str(e)}'}), 500
 
-        # logger.debug(f"Parsed AI result: {ai_result}")
         components = ai_result.get('components', [])
 
         if not components:
@@ -203,6 +206,7 @@ def create_dashboard():
                 'suggestions': []
             }), 200
 
+        # Assign layout positions
         for i, comp in enumerate(components):
             if 'type' not in comp:
                 comp['type'] = 'table'
@@ -218,27 +222,65 @@ def create_dashboard():
         results = []
         suggestions = []
         for comp in components:
-            # logger.debug(f"Processing component: {comp}")
             component_id = comp['component_id']
             viz_type = comp['type']
             sql_query = comp.get('sql_query')
             reasoning = comp['reasoning']
-            # logger.debug(f"Executing query for {component_id}: {sql_query}")
+
             try:
                 result = execute_query(connection_data, sql_query)
                 logger.debug(f"Query result for {component_id}: {result}")
-                formatted_result = format_for_visualization(
-                    sql_query, result, viz_type) if viz_type != 'table' else result
+
+                # If no data, populate with mock data
                 if not result or (isinstance(result, list) and len(result) == 0):
-                    formatted_result = {
-                        "data": {"labels": [], "datasets": []}} if viz_type != 'table' else []
-                    reasoning += " (No data returned; displaying empty component)"
+                    reasoning += " (No data returned; using mock data)"
+                    if viz_type == "card":
+                        result = [{"title": "Sample Metric",
+                                   "value": 100, "change": "+5%"}]
+                    elif viz_type == "pie":
+                        result = [
+                            {"label": "Category A", "value": 40},
+                            {"label": "Category B", "value": 30},
+                            {"label": "Category C", "value": 30}
+                        ]
+                    elif viz_type in ["bar", "line", "area"]:
+                        result = [
+                            {"label": "Jan", "value": 50},
+                            {"label": "Feb", "value": 60},
+                            {"label": "Mar", "value": 70}
+                        ]
+                    else:  # table
+                        result = [{"col1": "value1", "col2": "value2"}]
+
+                formatted_result = format_for_visualization(
+                    sql_query, result, viz_type) if viz_type != 'table' and viz_type != 'card' else result
             except Exception as e:
                 logger.error(
                     f"Query execution failed for {component_id}: {str(e)}", exc_info=True)
-                formatted_result = {
-                    "data": {"labels": [], "datasets": []}} if viz_type != 'table' else []
-                reasoning += f" (Query failed: {str(e)})"
+                reasoning += f" (Query failed: {str(e)}; using mock data)"
+                # Use mock data on error
+                if viz_type == "card":
+                    formatted_result = [
+                        {"title": "Sample Metric", "value": 100, "change": "+5%"}]
+                elif viz_type == "pie":
+                    formatted_result = {
+                        "type": "pie",
+                        "data": {
+                            "labels": ["Category A", "Category B", "Category C"],
+                            "datasets": [{"data": [40, 30, 30], "backgroundColor": ["#FF6384", "#36A2EB", "#FFCE56"]}]
+                        }
+                    }
+                elif viz_type in ["bar", "line", "area"]:
+                    formatted_result = {
+                        "type": viz_type,
+                        "data": {
+                            "labels": ["Jan", "Feb", "Mar"],
+                            "datasets": [{"label": "Data", "data": [50, 60, 70], "backgroundColor": "#FF6384"}]
+                        }
+                    }
+                else:  # table
+                    formatted_result = [{"col1": "value1", "col2": "value2"}]
+
             full_response = {
                 'question': prompt,
                 'sql': sql_query,
@@ -249,24 +291,23 @@ def create_dashboard():
                 'timestamp': time.time()
             }
             results.append(full_response)
-            if 'suggestion' in comp or 'exception' in locals():
+            if 'suggestion' in comp:
                 suggestions.append({
                     'component_id': component_id,
                     'original': viz_type,
                     'suggestion': comp.get('suggestion', 'table'),
                     'reasoning': reasoning
                 })
-        # logger.debug(f"Final results: {results}")
-        # logger.debug(f"Final suggestions: {suggestions}")
 
-        chat_sessions_collection.update_one(
-            {'chat_session_id': chat_session_id},
-            {
-                '$set': {'dashboard_layout': results},
-                '$push': {'messages': {'$each': results}}
-            },
-            upsert=True
-        )
+        # app.py (Update in /create_dashboard under the try-except block, after results and suggestions are processed)
+            chat_sessions_collection.update_one(
+                {'chat_session_id': chat_session_id},
+                {
+                    # Update only dashboard_layout
+                    '$set': {'dashboard_layout': results}
+                },
+                upsert=True
+            )
 
         return jsonify({
             'success': True,
@@ -284,23 +325,22 @@ def save_dashboard():
     try:
         data = request.get_json()
         chat_session_id = data.get('chat_session_id')
-        # e.g., [{"component_id": "comp1", "x": 0, "y": 0, "w": 2, "h": 2}, ...]
         layout = data.get('layout')
 
         if not chat_session_id or not layout:
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
 
-        # Validate layout components
         session = chat_sessions_collection.find_one(
             {'chat_session_id': chat_session_id})
         if not session:
             return jsonify({'success': False, 'error': 'Chat session not found'}), 404
 
-        # Update layout with new positions
+        # Update the components of the most recent dashboard_layout entry (index 0)
         chat_sessions_collection.update_one(
             {'chat_session_id': chat_session_id},
-            {'$set': {'dashboard_layout': layout}},
-            upsert=True
+            {
+                '$set': {'dashboard_layout.0.components': layout}
+            }
         )
         logger.info(
             f"Saved dashboard layout for chat_session_id: {chat_session_id}")
@@ -322,78 +362,115 @@ def export_dashboard():
         if not session:
             return jsonify({'success': False, 'error': 'Chat session not found'}), 404
 
-        messages = session.get('messages', [])
-        if not messages:
-            return jsonify({'success': False, 'error': 'No messages found in session'}), 404
+        layout = session.get('dashboard_layout', [])
+        if not layout:
+            return jsonify({'success': False, 'error': 'No dashboard layout found in session'}), 404
+
+        # Get the most recent dashboard components
+        current_dashboard = layout[0].get('components', []) if layout else []
 
         output = io.BytesIO()
         workbook = xlsxwriter.Workbook(output, {'in_memory': True})
 
-        # Track used sheet names to avoid duplicates
-        used_sheet_names = {}
+        # --- Dashboard Sheet: Reflect User Layout ---
+        dashboard_sheet = workbook.add_worksheet('Dashboard')
+        chart_positions = {}  # Track chart positions to avoid overlap
 
-        for i, msg in enumerate(messages):
-            # Base sheet name
-            base_name = f"{msg.get('visualization', 'unknown')}_{msg.get('component_id', str(i))}"[
-                :31]
-            sheet_name = base_name
-            suffix = 1
-            while sheet_name in used_sheet_names:
-                suffix_str = f"_{suffix}"
-                max_base_len = 31 - len(suffix_str)
-                sheet_name = f"{base_name[:max_base_len]}{suffix_str}"
-                suffix += 1
-            used_sheet_names[sheet_name] = True
+        for item in current_dashboard:
+            comp_layout = item
+            if not comp_layout:
+                continue
 
-            worksheet = workbook.add_worksheet(sheet_name)
+            x = comp_layout.get('x', 0) * 50
+            y = comp_layout.get('y', 0) * 50
+            w = comp_layout.get('w', 2) * 50
+            h = comp_layout.get('h', 2) * 50
 
-            # Write headers and data
-            result = msg.get('result', {})
-            if isinstance(result, dict) and 'data' in result:  # Visualization (bar/pie)
+            pos_x = x // 50
+            pos_y = y // 50
+            while (pos_x, pos_y) in chart_positions:
+                pos_y += 1
+            chart_positions[(pos_x, pos_y)] = True
+
+            result = comp_layout.get('result', {})
+            viz_type = comp_layout.get('visualization', 'unknown')
+
+            if viz_type == 'card' and isinstance(result, list) and result:
+                card_data = result[0]
+                dashboard_sheet.write(
+                    pos_y, pos_x, card_data.get('title', 'Metric'))
+                dashboard_sheet.write(
+                    pos_y + 1, pos_x, card_data.get('value', '0'))
+                dashboard_sheet.write(
+                    pos_y + 2, pos_x, card_data.get('change', '0%'))
+            elif viz_type in ['pie', 'bar', 'line', 'area'] and isinstance(result, dict) and 'data' in result:
                 labels = result['data'].get('labels', [])
                 datasets = result['data'].get('datasets', [{}])[
                     0].get('data', [])
-                worksheet.write_row(0, 0, ['Label', msg.get(
-                    'visualization', 'unknown').capitalize()])
                 for row_idx, label in enumerate(labels, 1):
-                    worksheet.write(row_idx, 0, label)
+                    dashboard_sheet.write(pos_y + row_idx, pos_x, label)
                     dataset_value = datasets[row_idx -
                                              1] if row_idx - 1 < len(datasets) else ''
-                    worksheet.write(row_idx, 1, dataset_value)
+                    dashboard_sheet.write(
+                        pos_y + row_idx, pos_x + 1, dataset_value)
 
-                # Add chart based on visualization type
-                if msg.get('visualization') == 'bar':
-                    chart = workbook.add_chart({'type': 'column'})
-                    chart.add_series({
-                        'categories': [sheet_name, 1, 0, len(labels), 0],
-                        'values': [sheet_name, 1, 1, len(labels), 1],
-                        'name': 'Data'
-                    })
-                    chart.set_title(
-                        {'name': f'{msg.get("visualization", "unknown").capitalize()} Chart'})
-                    # Place chart to the right of data
-                    worksheet.insert_chart('D2', chart)
-                elif msg.get('visualization') == 'pie':
-                    chart = workbook.add_chart({'type': 'pie'})
-                    chart.add_series({
-                        'categories': [sheet_name, 1, 0, len(labels), 0],
-                        'values': [sheet_name, 1, 1, len(labels), 1],
-                        'name': 'Data'
-                    })
-                    chart.set_title(
-                        {'name': f'{msg.get("visualization", "unknown").capitalize()} Chart'})
-                    # Place chart to the right of data
-                    worksheet.insert_chart('D2', chart)
-            else:  # Table or raw data
-                if isinstance(result, list) and result:
-                    headers = list(result[0].keys()) if result else [
-                        'No Headers']
-                    worksheet.write_row(0, 0, headers)
-                    for row_idx, row in enumerate(result, 1):
-                        row_data = [row.get(h, '') for h in headers]
-                        worksheet.write_row(row_idx, 0, row_data)
-                else:
-                    worksheet.write(0, 0, "No data available")
+                chart_type = 'line' if viz_type == 'line' else 'column' if viz_type == 'bar' else 'pie'
+                chart = workbook.add_chart({'type': chart_type})
+                chart.add_series({
+                    'categories': ['Dashboard', pos_y + 1, pos_x, pos_y + len(labels), pos_x],
+                    'values': ['Dashboard', pos_y + 1, pos_x + 1, pos_y + len(labels), pos_x + 1],
+                    'name': f"{viz_type} ({comp_layout.get('component_id')})"
+                })
+                chart.set_title({'name': f"{viz_type.capitalize()} Chart"})
+                dashboard_sheet.insert_chart(
+                    f'{chr(65 + pos_x)}{pos_y + 1}', chart, {'x_scale': w / 100, 'y_scale': h / 100})
+
+        # --- Data Sheet: Map All Data to Components ---
+        data_sheet = workbook.add_worksheet('Data')
+        current_row = 0
+        for i, item in enumerate(current_dashboard):
+            data_sheet.write(
+                current_row, 0, f"Component: {item.get('visualization', 'unknown')}_{item.get('component_id')}")
+            current_row += 1
+            result = item.get('result', {})
+            viz_type = item.get('visualization', 'unknown')
+
+            if viz_type == 'card' and isinstance(result, list) and result:
+                card_data = result[0]
+                data_sheet.write_row(
+                    current_row, 0, ['Title', 'Value', 'Change'])
+                current_row += 1
+                data_sheet.write_row(current_row, 0, [
+                    card_data.get('title', 'Metric'),
+                    card_data.get('value', '0'),
+                    card_data.get('change', '0%')
+                ])
+                current_row += 1
+            elif viz_type in ['pie', 'bar', 'line', 'area'] and isinstance(result, dict) and 'data' in result:
+                labels = result['data'].get('labels', [])
+                datasets = result['data'].get('datasets', [{}])[
+                    0].get('data', [])
+                data_sheet.write_row(
+                    current_row, 0, ['Label', viz_type.capitalize()])
+                current_row += 1
+                for row_idx, label in enumerate(labels):
+                    dataset_value = datasets[row_idx] if row_idx < len(
+                        datasets) else ''
+                    data_sheet.write_row(
+                        current_row, 0, [label, dataset_value])
+                    current_row += 1
+            elif isinstance(result, list) and result:  # Table
+                headers = list(result[0].keys()) if result else ['No Headers']
+                data_sheet.write_row(current_row, 0, headers)
+                current_row += 1
+                for row in result:
+                    row_data = [row.get(h, '') for h in headers]
+                    data_sheet.write_row(current_row, 0, row_data)
+                    current_row += 1
+            else:
+                data_sheet.write(current_row, 0, "No data available")
+                current_row += 1
+            current_row += 2  # Spacing between components
 
         workbook.close()
         output.seek(0)
@@ -408,6 +485,31 @@ def export_dashboard():
 
     except Exception as e:
         logger.error(f"Export error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# app.py (Add new endpoint)
+
+
+# app.py (Update /get_dashboard_history)
+@app.route('/get_dashboard_history', methods=['GET'])
+def get_dashboard_history():
+    try:
+        chat_session_id = request.args.get('chat_session_id')
+        if not chat_session_id:
+            return jsonify({'success': False, 'error': 'Missing chat_session_id'}), 400
+
+        session = chat_sessions_collection.find_one(
+            {'chat_session_id': chat_session_id})
+        if not session:
+            return jsonify({'success': False, 'error': 'Chat session not found'}), 404
+
+        dashboard_history = session.get('dashboard_layout', [])
+        return jsonify({
+            'success': True,
+            'history': dashboard_history
+        }), 200
+    except Exception as e:
+        logger.error(f"Get dashboard history error: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

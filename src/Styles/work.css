@@ -1,0 +1,57 @@
+/* src/Styles/ChartRenderer.css */
+.metric-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.metric-content {
+  text-align: center;
+}
+
+.metric-value-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #2c3e50;
+  line-height: 1.2;
+}
+
+.metric-icon {
+  font-size: 24px;
+  margin-left: 8px;
+}
+
+.metric-title {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin-bottom: 4px;
+  font-weight: 400;
+}
+
+.metric-change.positive {
+  font-size: 14px;
+  color: #27ae60;
+  font-weight: 500;
+}
+
+.metric-change.negative {
+  font-size: 14px;
+  color: #e74c3c;
+  font-weight: 500;
+}
