@@ -267,3 +267,173 @@
   min-height: auto !important;
   overflow: visible !important;
 }
+
+.dashboard-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.dashboard-main {
+  flex: 1;
+  padding: 20px;
+}
+
+.components-sidebar {
+  width: 300px;
+  background: white;
+  border-left: 1px solid #e2e8f0;
+  padding: 20px;
+  height: 100vh;
+  position: fixed;
+  right: 0;
+  top: 0;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+  z-index: 1000;
+}
+
+.components-sidebar.closed {
+  transform: translateX(calc(100% - 40px));
+}
+
+.components-sidebar.open {
+  transform: translateX(0);
+  transition: transform 0.3s ease;
+}
+
+/* Add animation when forced open */
+.components-sidebar.open.highlight {
+  animation: highlightSidebar 1s ease;
+}
+
+@keyframes highlightSidebar {
+  0%,
+  100% {
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow: -2px 0 20px rgba(59, 130, 246, 0.5);
+  }
+}
+
+/* Style the component list to be more prominent */
+.component-list {
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+}
+
+.components-sidebar.open .component-list {
+  opacity: 1;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  left: -40px;
+  top: 20px;
+  width: 40px;
+  height: 40px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.cart-counter {
+  position: absolute;
+  left: -40px;
+  top: 70px;
+  width: 40px;
+  height: 40px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 6px 0 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cart-counter .counter {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ef4444;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.component-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.component-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.added-badge,
+.add-badge {
+  position: absolute;
+  right: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.added-badge {
+  background: #34d399;
+  color: white;
+}
+
+.add-badge {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.cart-items {
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+}
+
+.cart-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.remove-button {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.remove-button:hover {
+  background: #fee2e2;
+  border-radius: 4px;
+}

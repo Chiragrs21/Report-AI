@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronRight, ChevronLeft, ShoppingCart } from "lucide-react";
 import { WidthProvider, Responsive } from "react-grid-layout";
 import ChartRenderer from "../components/charts/ChartRender";
 import "react-grid-layout/css/styles.css";
@@ -37,10 +37,18 @@ export function DashboardContent({
     setCurrentStep,
 }) {
     const [prompt, setPrompt] = useState("");
-    const [selectedComponents, setSelectedComponents] = useState([]);
+    const [cartComponents, setCartComponents] = useState([]);
     const [dashboardData, setDashboardData] = useState(null);
-    const [suggestions, setSuggestions] = useState([]);
-    const availableComponents = ["pie", "bar", "line", "table"];
+    const [selectedComponents, setSelectedComponents] = useState([]); // Add this
+    const [suggestions, setSuggestions] = useState([]); // Add this
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    const availableComponents = [
+        { id: "pie", label: "Pie Chart", icon: "📊" },
+        { id: "bar", label: "Bar Chart", icon: "📈" },
+        { id: "line", label: "Line Chart", icon: "📉" },
+        { id: "table", label: "Table", icon: "📋" }
+    ];
 
     useEffect(() => {
         console.log("dashboardData:", dashboardData);
@@ -59,7 +67,7 @@ export function DashboardContent({
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!prompt.trim() || selectedComponents.length === 0 || !chatSessionId || !connectionId) {
+        if (!prompt.trim() || cartComponents.length === 0 || !chatSessionId || !connectionId) {
             setMessages((prev) => [
                 ...prev,
                 {
@@ -84,7 +92,7 @@ export function DashboardContent({
                     prompt,
                     connection_id: connectionId,
                     chat_session_id: chatSessionId,
-                    components: selectedComponents,
+                    components: cartComponents,
                 }),
             });
 
@@ -146,146 +154,184 @@ export function DashboardContent({
         );
     };
 
+    const handleAddToCart = (component) => {
+        if (!cartComponents.includes(component)) {
+            setCartComponents([...cartComponents, component]);
+        }
+    };
+
+    const handleRemoveFromCart = (component) => {
+        setCartComponents(cartComponents.filter(c => c !== component));
+    };
+
     return (
-        <div className="dashboard-content">
-            {!dashboardData ? (
-                <>
-                    <div className="welcome-message">
-                        <h2>Create Your Dashboard</h2>
-                        <p>Select components and enter a prompt to generate your dashboard.</p>
+        <div className="dashboard-layout">
+            <div className={`dashboard-main ${!isSidebarOpen ? 'expanded' : ''}`}>
+                {!dashboardData ? (
+                    <>
+                        <div className="welcome-message">
+                            <h2>Create Your Dashboard</h2>
+                            <p>Add components from the sidebar and enter a prompt to generate your dashboard.</p>
+                        </div>
+                        <div className="message-input-area">
+                            <form onSubmit={handleSubmit} className="message-form">
+                                <div className="input-container">
+                                    <input
+                                        type="text"
+                                        value={prompt}
+                                        onChange={(e) => setPrompt(e.target.value)}
+                                        placeholder="Ask a question or use /create for visualizations..."
+                                        className="message-input"
+                                        disabled={!connectionId || !chatSessionId || cartComponents.length === 0}
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="submit-button"
+                                        disabled={!connectionId || !chatSessionId || !prompt.trim() || cartComponents.length === 0}
+                                    >
+                                        <ArrowRight className="submit-icon" />
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </>
+                ) : (
+                    <div className="dashboard-display">
+                        <h2>Your Dashboard</h2>
+                        <button
+                            onClick={() => {
+                                window.location.href = `http://localhost:5000/export_dashboard?chat_session_id=${chatSessionId}`;
+                            }}
+                            className="export-button"
+                        >
+                            Export to Excel
+                        </button>
+                        <div style={{ width: '100%', height: 'auto' }}>
+                            <ResponsiveGridLayout
+                                className="dashboard-grid"
+                                layouts={{
+                                    lg: calculateLayout(dashboardData.layout, 1200),
+                                    md: calculateLayout(dashboardData.layout, 996),
+                                    sm: calculateLayout(dashboardData.layout, 768),
+                                    xs: calculateLayout(dashboardData.layout, 480),
+                                    xxs: calculateLayout(dashboardData.layout, 0)
+                                }}
+                                breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                                cols={{ lg: 12, md: 9, sm: 6, xs: 4, xxs: 2 }}
+                                rowHeight={100}
+                                isDraggable={true}
+                                isResizable={true}
+                                compactType="vertical"
+                                margin={[20, 20]}
+                                containerPadding={[20, 20]}
+                                onLayoutChange={(newLayout) => {
+                                    const updatedLayout = dashboardData.layout.map((comp) => {
+                                        const layoutItem = newLayout.find((item) => item.i === comp.component_id);
+                                        return layoutItem ? { ...comp, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h } : comp;
+                                    });
+                                    setDashboardData(prev => ({ ...prev, layout: updatedLayout }));
+                                    saveLayout(updatedLayout);
+                                }}
+                                useCSSTransforms={true}
+                                autoSize={true}
+                            >
+                                {dashboardData.layout.map((component) => (
+                                    <div
+                                        key={component.component_id}
+                                        className="dashboard-component"
+                                        data-grid={{
+                                            x: component.x || 0,
+                                            y: component.y || 0,
+                                            w: component.w || 4,
+                                            h: component.h || 4,
+                                            minW: 3,
+                                            minH: 3
+                                        }}
+                                    >
+                                        <h3>
+                                            {typeof component.visualization === "string" && component.visualization
+                                                ? component.visualization.charAt(0).toUpperCase() + component.visualization.slice(1)
+                                                : "Unknown Component"}
+                                        </h3>
+                                        <div className="chart-wrapper">
+                                            {component.visualization === "table" ? (
+                                                <TableRenderer data={component.result || []} />
+                                            ) : (
+                                                <ChartRenderer
+                                                    visualization={component.visualization || "pie"}
+                                                    chartData={component.result?.data || component.result || {}}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </ResponsiveGridLayout>
+                        </div>
                     </div>
-                    <div className="component-selector">
-                        <label>Select Components:</label>
-                        {availableComponents.map((comp) => (
-                            <div key={comp} className="checkbox-option">
-                                <input
-                                    type="checkbox"
-                                    id={comp}
-                                    checked={selectedComponents.includes(comp)}
-                                    onChange={() => handleComponentChange(comp)}
-                                />
-                                <label htmlFor={comp}>{comp.charAt(0).toUpperCase() + comp.slice(1)}</label>
+                )}
+            </div>
+
+            <div className={`components-sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
+                <button
+                    className="sidebar-toggle"
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                >
+                    {isSidebarOpen ? <ChevronRight /> : <ChevronLeft />}
+                </button>
+
+                <div className="cart-counter">
+                    <ShoppingCart />
+                    <span className="counter">{cartComponents.length}</span>
+                </div>
+
+                <div className="sidebar-content">
+                    <h3>Available Components</h3>
+                    <div className="component-list">
+                        {availableComponents.map(comp => (
+                            <div
+                                key={comp.id}
+                                className={`component-item ${cartComponents.includes(comp.id) ? 'selected' : ''}`}
+                                onClick={() => cartComponents.includes(comp.id) ?
+                                    handleRemoveFromCart(comp.id) :
+                                    handleAddToCart(comp.id)}
+                            >
+                                <span className="component-icon">{comp.icon}</span>
+                                <span className="component-label">{comp.label}</span>
+                                {cartComponents.includes(comp.id) ? (
+                                    <span className="added-badge">Added</span>
+                                ) : (
+                                    <span className="add-badge">+ Add</span>
+                                )}
                             </div>
                         ))}
                     </div>
-                    <div className="message-input-area">
-                        <form onSubmit={handleSubmit} className="message-form">
-                            <div className="input-container">
-                                <input
-                                    type="text"
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    placeholder="Enter your prompt (e.g., 'Show sales by region')"
-                                    className="message-input"
-                                    disabled={!connectionId || !chatSessionId}
-                                />
-                                <button
-                                    type="submit"
-                                    className="submit-button"
-                                    disabled={!connectionId || !chatSessionId || !prompt.trim() || selectedComponents.length === 0}
-                                >
-                                    <ArrowRight className="submit-icon" />
-                                </button>
+
+                    {cartComponents.length > 0 && (
+                        <div className="component-cart">
+                            <h3>Selected Components</h3>
+                            <div className="cart-items">
+                                {cartComponents.map(id => {
+                                    const comp = availableComponents.find(c => c.id === id);
+                                    return (
+                                        <div key={id} className="cart-item">
+                                            <span className="item-info">
+                                                <span className="item-icon">{comp.icon}</span>
+                                                <span className="item-label">{comp.label}</span>
+                                            </span>
+                                            <button
+                                                className="remove-button"
+                                                onClick={() => handleRemoveFromCart(id)}
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        </form>
-                    </div>
-                    {suggestions.length > 0 && (
-                        <div className="suggestions">
-                            <h3>Suggestions</h3>
-                            {suggestions.map((sug) => (
-                                <div key={sug.component_id} className="suggestion-item">
-                                    <p>{`Component '${sug.original}' not suitable: ${sug.reasoning}`}</p>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedComponents((prev) =>
-                                                prev.map((c) => (c === sug.original ? sug.suggestion : c))
-                                            );
-                                            setSuggestions((prev) =>
-                                                prev.filter((s) => s.component_id !== sug.component_id)
-                                            );
-                                        }}
-                                    >
-                                        Use {sug.suggestion} Instead
-                                    </button>
-                                </div>
-                            ))}
                         </div>
                     )}
-                </>
-            ) : (
-                <div className="dashboard-display">
-                    <h2>Your Dashboard</h2>
-                    <button
-                        onClick={() => {
-                            window.location.href = `http://localhost:5000/export_dashboard?chat_session_id=${chatSessionId}`;
-                        }}
-                        className="export-button"
-                    >
-                        Export to Excel
-                    </button>
-                    <div style={{ width: '100%', height: 'auto' }}>
-                        <ResponsiveGridLayout
-                            className="dashboard-grid"
-                            layouts={{
-                                lg: calculateLayout(dashboardData.layout, 1200),
-                                md: calculateLayout(dashboardData.layout, 996),
-                                sm: calculateLayout(dashboardData.layout, 768),
-                                xs: calculateLayout(dashboardData.layout, 480),
-                                xxs: calculateLayout(dashboardData.layout, 0)
-                            }}
-                            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                            cols={{ lg: 12, md: 9, sm: 6, xs: 4, xxs: 2 }}
-                            rowHeight={100}
-                            isDraggable={true}
-                            isResizable={true}
-                            compactType="vertical"
-                            margin={[20, 20]}
-                            containerPadding={[20, 20]}
-                            onLayoutChange={(newLayout) => {
-                                const updatedLayout = dashboardData.layout.map((comp) => {
-                                    const layoutItem = newLayout.find((item) => item.i === comp.component_id);
-                                    return layoutItem ? { ...comp, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h } : comp;
-                                });
-                                setDashboardData(prev => ({ ...prev, layout: updatedLayout }));
-                                saveLayout(updatedLayout);
-                            }}
-                            useCSSTransforms={true}
-                            autoSize={true}
-                        >
-                            {dashboardData.layout.map((component) => (
-                                <div
-                                    key={component.component_id}
-                                    className="dashboard-component"
-                                    data-grid={{
-                                        x: component.x || 0,
-                                        y: component.y || 0,
-                                        w: component.w || 4,
-                                        h: component.h || 4,
-                                        minW: 3,
-                                        minH: 3
-                                    }}
-                                >
-                                    <h3>
-                                        {typeof component.visualization === "string" && component.visualization
-                                            ? component.visualization.charAt(0).toUpperCase() + component.visualization.slice(1)
-                                            : "Unknown Component"}
-                                    </h3>
-                                    <div className="chart-wrapper">
-                                        {component.visualization === "table" ? (
-                                            <TableRenderer data={component.result || []} />
-                                        ) : (
-                                            <ChartRenderer
-                                                visualization={component.visualization || "pie"}
-                                                chartData={component.result?.data || component.result || {}}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </ResponsiveGridLayout>
-                    </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
