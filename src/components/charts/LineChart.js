@@ -1,28 +1,32 @@
 // src/components/LineChart.js
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend } from 'chart.js';
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
 
-const LineChart = ({ data }) => {
-    const options = {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top' },
-            tooltip: { enabled: true },
-        },
-        scales: {
-            x: { title: { display: true, text: 'Time/Date' } },
-            y: { title: { display: true, text: 'Value' } },
-        },
-    };
+const LineChart = ({ data, containerRef, options }) => {
+    const chartRef = useRef(null);
 
-    return (
-        <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
-            <Line data={data} options={options} />
-        </div>
-    );
+    useEffect(() => {
+        const resizeObserver = new ResizeObserver(() => {
+            if (chartRef.current) {
+                chartRef.current.resize();
+            }
+        });
+
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        return () => {
+            if (containerRef.current) {
+                resizeObserver.unobserve(containerRef.current);
+            }
+        };
+    }, [containerRef]);
+
+    return <Line ref={chartRef} data={data} options={options} />;
 };
 
 export default LineChart;

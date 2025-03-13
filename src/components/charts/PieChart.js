@@ -1,25 +1,32 @@
 // src/components/PieChart.js
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const PieChart = ({ data }) => {
-    const options = {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top' },
-            tooltip: { enabled: true },
-        },
-    };
+const PieChart = ({ data, containerRef, options }) => {
+    const chartRef = useRef(null);
 
+    useEffect(() => {
+        const resizeObserver = new ResizeObserver(() => {
+            if (chartRef.current) {
+                chartRef.current.resize();
+            }
+        });
 
-    return (
-        <div style={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
-            <Pie data={data} options={options} />
-        </div>
-    );
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        return () => {
+            if (containerRef.current) {
+                resizeObserver.unobserve(containerRef.current);
+            }
+        };
+    }, [containerRef]);
+
+    return <Pie ref={chartRef} data={data} options={options} />;
 };
 
 export default PieChart;

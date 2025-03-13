@@ -1,31 +1,40 @@
 // src/components/AreaChart.js
-import React from 'react';
-import { Line } from 'react-chartjs-2'; // Area chart is a filled line chart in Chart.js
+import React, { useEffect, useRef } from 'react';
+import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
-const AreaChart = ({ data }) => {
-    const options = {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top' },
-            tooltip: { enabled: true },
-        },
-        scales: {
-            x: { title: { display: true, text: 'Time/Date' } },
-            y: { title: { display: true, text: 'Value' } },
-        },
+const AreaChart = ({ data, containerRef, options }) => {
+    const chartRef = useRef(null);
+
+    useEffect(() => {
+        const resizeObserver = new ResizeObserver(() => {
+            if (chartRef.current) {
+                chartRef.current.resize();
+            }
+        });
+
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        return () => {
+            if (containerRef.current) {
+                resizeObserver.unobserve(containerRef.current);
+            }
+        };
+    }, [containerRef]);
+
+    const defaultOptions = {
+        ...options,
         elements: {
-            line: { fill: true }, // Makes it an area chart
-        },
+            ...options?.elements,
+            line: { fill: true } // Makes it an area chart
+        }
     };
 
-    return (
-        <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
-            <Line data={data} options={options} />
-        </div>
-    );
+    return <Line ref={chartRef} data={data} options={defaultOptions} />;
 };
 
 export default AreaChart;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Bell, HelpCircle, Moon, Search, ArrowRight, Sun, LogOut, Database, FileSpreadsheet, ChevronDown, Zap, Settings } from "lucide-react";
 import "../Styles/Chatinterface.css";
 import ChartRenderer from "../components/charts/ChartRender";
+import TableRenderer from "../components/TableRenderer";
 import { useNavigate } from 'react-router-dom';
 import { DashboardContent } from "./Dashboard";
 
@@ -470,7 +471,19 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
                                                 }}
                                             />
                                             <div className="chart-container">
-                                                <ChartRenderer visualization={msg.visualization} chartData={msg.chartData} />
+                                                <ChartRenderer
+                                                    visualization={msg.visualization}
+                                                    chartData={msg.chartData}
+                                                    options={{
+                                                        responsive: true,
+                                                        maintainAspectRatio: true,
+                                                        plugins: {
+                                                            legend: {
+                                                                position: 'bottom'
+                                                            }
+                                                        }
+                                                    }}
+                                                />
                                             </div>
                                         </div>
                                     ) : (
@@ -485,6 +498,35 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
                                             }}
                                         />
                                     )}
+                                    {/* {msg.visualization && (
+                                        <div className="message-visualization">
+                                            {msg.visualization === "table" ? (
+                                                <div className="table-container">
+                                                    {Array.isArray(msg.result) && msg.result.length > 0 ? (
+                                                        <TableRenderer data={msg.result} />
+                                                    ) : (
+                                                        <p>No data available</p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="chart-container">
+                                                    <ChartRenderer
+                                                        visualization={msg.visualization}
+                                                        chartData={msg.result?.data || msg.result || {}}
+                                                        options={{
+                                                            responsive: true,
+                                                            maintainAspectRatio: true,
+                                                            plugins: {
+                                                                legend: {
+                                                                    position: 'bottom'
+                                                                }
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )} */}
                                 </div>
                             </div>
                         ))}

@@ -7,6 +7,25 @@ import "../Styles/Dashboard.css";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+const calculateLayout = (components, containerWidth) => {
+    const layout = components.map((comp, index) => {
+        // Calculate optimal grid positions
+        const cols = containerWidth >= 1200 ? 3 : containerWidth >= 768 ? 2 : 1;
+        const columnWidth = Math.floor(12 / cols);
+
+        return {
+            i: comp.component_id || `comp-${index}`,
+            x: (index % cols) * columnWidth,
+            y: Math.floor(index / cols) * 4,
+            w: columnWidth,
+            h: 4,
+            minW: 3,
+            minH: 3
+        };
+    });
+    return layout;
+};
+
 export function DashboardContent({
     connectionId,
     chatSessionId,
@@ -127,14 +146,6 @@ export function DashboardContent({
         );
     };
 
-    const layout = dashboardData?.layout?.map((comp) => ({
-        i: comp.component_id || `comp-${Math.random()}`,
-        x: comp.x !== undefined ? comp.x : 0,
-        y: comp.y !== undefined ? comp.y : 0,
-        w: comp.w !== undefined ? comp.w : 4,
-        h: comp.h !== undefined ? comp.h : 4,
-    })) || [];
-
     return (
         <div className="dashboard-content">
             {!dashboardData ? (
@@ -212,42 +223,47 @@ export function DashboardContent({
                     >
                         Export to Excel
                     </button>
-                    {dashboardData?.layout?.length > 0 ? (
+                    <div style={{ width: '100%', height: 'auto' }}>
                         <ResponsiveGridLayout
                             className="dashboard-grid"
-                            layouts={{ lg: layout }}
-                            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+                            layouts={{
+                                lg: calculateLayout(dashboardData.layout, 1200),
+                                md: calculateLayout(dashboardData.layout, 996),
+                                sm: calculateLayout(dashboardData.layout, 768),
+                                xs: calculateLayout(dashboardData.layout, 480),
+                                xxs: calculateLayout(dashboardData.layout, 0)
+                            }}
+                            breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                            cols={{ lg: 12, md: 9, sm: 6, xs: 4, xxs: 2 }}
                             rowHeight={100}
                             isDraggable={true}
                             isResizable={true}
                             compactType="vertical"
-                            preventCollision={false}
-                            onLayoutChange={(layout) => {
-                                console.log("New layout:", layout);
-                                const updatedLayout = layout.map((item) => {
-                                    const originalComp = dashboardData.layout.find(
-                                        (comp) => comp.component_id === item.i
-                                    );
-                                    return originalComp
-                                        ? {
-                                            ...originalComp,
-                                            x: item.x,
-                                            y: item.y,
-                                            w: item.w,
-                                            h: item.h,
-                                        }
-                                        : item;
+                            margin={[20, 20]}
+                            containerPadding={[20, 20]}
+                            onLayoutChange={(newLayout) => {
+                                const updatedLayout = dashboardData.layout.map((comp) => {
+                                    const layoutItem = newLayout.find((item) => item.i === comp.component_id);
+                                    return layoutItem ? { ...comp, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h } : comp;
                                 });
-                                console.log("Updated layout:", updatedLayout);
-                                setDashboardData((prev) => ({ ...prev, layout: updatedLayout }));
+                                setDashboardData(prev => ({ ...prev, layout: updatedLayout }));
                                 saveLayout(updatedLayout);
                             }}
+                            useCSSTransforms={true}
+                            autoSize={true}
                         >
                             {dashboardData.layout.map((component) => (
                                 <div
                                     key={component.component_id}
                                     className="dashboard-component"
-                                    onClick={(e) => e.stopPropagation()}
+                                    data-grid={{
+                                        x: component.x || 0,
+                                        y: component.y || 0,
+                                        w: component.w || 4,
+                                        h: component.h || 4,
+                                        minW: 3,
+                                        minH: 3
+                                    }}
                                 >
                                     <h3>
                                         {typeof component.visualization === "string" && component.visualization
@@ -264,34 +280,10 @@ export function DashboardContent({
                                             />
                                         )}
                                     </div>
-                                    <p>{component.reasoning || "No reasoning provided"}</p>
                                 </div>
                             ))}
                         </ResponsiveGridLayout>
-                    ) : suggestions.length > 0 ? (
-                        <div className="suggestions">
-                            <h3>Component Suggestions</h3>
-                            {suggestions.map((sug) => (
-                                <div key={sug.component_id} className="suggestion-item">
-                                    <p>{`Component '${sug.original}' not suitable: ${sug.reasoning}`}</p>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedComponents((prev) =>
-                                                prev.map((c) => (c === sug.original ? sug.suggestion : c))
-                                            );
-                                            setSuggestions((prev) =>
-                                                prev.filter((s) => s.component_id !== sug.component_id)
-                                            );
-                                        }}
-                                    >
-                                        Use {sug.suggestion} Instead
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p>No components available to display. Please try a different prompt or check your database schema.</p>
-                    )}
+                    </div>
                 </div>
             )}
         </div>
