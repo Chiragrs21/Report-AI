@@ -3,6 +3,7 @@ import { Bell, HelpCircle, Moon, Search, ArrowRight, Sun, LogOut, Database, File
 import "../Styles/Chatinterface.css";
 import ChartRenderer from "../components/charts/ChartRender";
 import { useNavigate } from 'react-router-dom';
+import { DashboardContent } from "./Dashboard";
 
 export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setConnectionId, chatSessionId, chatSessions }) {
 
@@ -10,7 +11,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
 
     const [message, setMessage] = useState("");
     const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [activeModel, setActiveModel] = useState("GPT-3.5");
+    const [activeModel, setActiveModel] = useState("Insights");
     const [isConnectOpen, setIsConnectOpen] = useState(false);
     const [messages, setMessages] = useState([]);
     const [showLoadingModal, setShowLoadingModal] = useState(false);
@@ -97,7 +98,7 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
 
             if (data.success) {
                 console.log("ChatInterface.js: Setting connectionId to", data.connection_id);
-                setConnectionId(data.connection_id); // Update parent state
+                setConnectionId(data.connection_id);
                 setDbInfo(data.database_info);
             } else {
                 setConnectionError(data.error);
@@ -186,7 +187,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
                             visualization: msg.visualization
                         };
                     } else {
-                        // Text-only message with results
                         let formattedResponse = `**Query**: ${msg.question}\n\n`;
                         formattedResponse += `**SQL**:\n\`\`\`sql\n${msg.sql}\n\`\`\`\n\n`;
                         formattedResponse += "**Results**:\n";
@@ -286,7 +286,6 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     question: isVisualization ? `${questionToProcess} as a ${vizType === "pie" ? "pie chart" : vizType === "bar" ? "bar chart" : vizType === "area" ? "area chart" : "line graph"}` : userQuestion,
-                    model: activeModel === "GPT-3.5" ? "gemini-1.5-pro" : "gemini-1.5-flash",
                     connection_id: connectionId,
                     chat_session_id: chatSessionId
                 })
@@ -427,84 +426,100 @@ export function ChatInterface({ isDarkMode, toggleDarkMode, connectionId, setCon
             <div className="model-selector flex justify-center">
                 <div className="model-buttons relative">
                     <button
-                        className={`model-button ${activeModel === "GPT-3.5" ? "active" : ""}`}
-                        onClick={() => handleModelClick("GPT-3.5")}
+                        className={`model-button ${activeModel === "Insights" ? "active" : ""}`}
+                        onClick={() => handleModelClick("Insights")}
                     >
                         <Zap className="icon" /> Insights
                     </button>
                     <button
-                        className={`model-button ${activeModel === "GPT-4" ? "active" : ""}`}
-                        onClick={() => handleModelClick("GPT-4")}
+                        className={`model-button ${activeModel === "Reports" ? "active" : ""}`}
+                        onClick={() => handleModelClick("Reports")}
                     >
                         Reports
                     </button>
                 </div>
             </div>
-            <div className="chat-area">
-                {messages.length === 0 && (
-                    <div className="welcome-message">
-                        <h2>Welcome to Report AI</h2>
-                        <p>Connect to your database to get started. Ask questions about your data in natural language or use <code>/create</code> for visualizations (e.g., "/create pie chart of product sales").</p>
-                    </div>
-                )}
-                {messages.map((msg) => (
-                    <div key={msg.id} className={`message-container ${msg.isUser ? 'user-message' : 'ai-message'} ${msg.isSystem ? 'system-message' : ''} ${msg.isError ? 'error-message' : ''}`}>
-                        <img
-                            src={msg.isUser ? "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled-vSUaWK4RimrmYxNTRggAT3c0y2qv7H.png" : "https://ui-avatars.com/api/?name=AI&background=4F46E5&color=fff"}
-                            alt={msg.isUser ? "User" : "AI"}
-                            className="message-avatar"
-                        />
-                        <div className="message-bubble">
-                            {msg.isSystem ? (
-                                <div className="system-message-content">{msg.text}</div>
-                            ) : msg.chartData && msg.visualization ? (
-                                <div className="visualization-message">
-                                    <div
-                                        className="message-content"
-                                        dangerouslySetInnerHTML={{
-                                            __html: msg.text
-                                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                                .replace(/```sql\n([\s\S]*?)\n```/g, '<pre class="sql-block"><code>$1</code></pre>')
-                                                .replace(/\n/g, '<br/>')
-                                        }}
-                                    />
-                                    <div className="chart-container">
-                                        <ChartRenderer visualization={msg.visualization} chartData={msg.chartData} />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div
-                                    className="message-content"
-                                    dangerouslySetInnerHTML={{
-                                        __html: msg.text
-                                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                            .replace(/```sql\n([\s\S]*?)\n```/g, '<pre class="sql-block"><code>$1</code></pre>')
-                                            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-                                            .replace(/\n/g, '<br/>')
-                                    }}
+            {activeModel === "Insights" ? (
+                <>
+                    <div className="chat-area">
+                        {messages.length === 0 && (
+                            <div className="welcome-message">
+                                <h2>Welcome to Report AI</h2>
+                                <p>Connect to your database to get started. Ask questions about your data in natural language or use <code>/create</code> for visualizations (e.g., "/create pie chart of product sales").</p>
+                            </div>
+                        )}
+                        {messages.map((msg) => (
+                            <div key={msg.id} className={`message-container ${msg.isUser ? 'user-message' : 'ai-message'} ${msg.isSystem ? 'system-message' : ''} ${msg.isError ? 'error-message' : ''}`}>
+                                <img
+                                    src={msg.isUser ? "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled-vSUaWK4RimrmYxNTRggAT3c0y2qv7H.png" : "https://ui-avatars.com/api/?name=AI&background=4F46E5&color=fff"}
+                                    alt={msg.isUser ? "User" : "AI"}
+                                    className="message-avatar"
                                 />
-                            )}
-                        </div>
+                                <div className="message-bubble">
+                                    {msg.isSystem ? (
+                                        <div className="system-message-content">{msg.text}</div>
+                                    ) : msg.chartData && msg.visualization ? (
+                                        <div className="visualization-message">
+                                            <div
+                                                className="message-content"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: msg.text
+                                                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                        .replace(/```sql\n([\s\S]*?)\n```/g, '<pre class="sql-block"><code>$1</code></pre>')
+                                                        .replace(/\n/g, '<br/>')
+                                                }}
+                                            />
+                                            <div className="chart-container">
+                                                <ChartRenderer visualization={msg.visualization} chartData={msg.chartData} />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="message-content"
+                                            dangerouslySetInnerHTML={{
+                                                __html: msg.text
+                                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                                    .replace(/```sql\n([\s\S]*?)\n```/g, '<pre class="sql-block"><code>$1</code></pre>')
+                                                    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                                                    .replace(/\n/g, '<br/>')
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
-            <div className="message-input-area">
-                <form onSubmit={handleSubmit} className="message-form">
-                    <div className="input-container">
-                        <input
-                            type="text"
-                            className="message-input"
-                            placeholder={isConnected && chatSessionId ? "Ask a question or use /create for visualizations..." : isConnected ? "Start a new chat to begin..." : "Connect to a database first..."}
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            disabled={!isConnected || !chatSessionId}
-                        />
-                        <button type="submit" className="submit-button" disabled={!isConnected || !chatSessionId}>
-                            <ArrowRight className="submit-icon" />
-                        </button>
+                    <div className="message-input-area">
+                        <form onSubmit={handleSubmit} className="message-form">
+                            <div className="input-container">
+                                <input
+                                    type="text"
+                                    className="message-input"
+                                    placeholder={isConnected && chatSessionId ? "Ask a question or use /create for visualizations..." : isConnected ? "Start a new chat to begin..." : "Connect to a database first..."}
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    disabled={!isConnected || !chatSessionId}
+                                />
+                                <button type="submit" className="submit-button" disabled={!isConnected || !chatSessionId}>
+                                    <ArrowRight className="submit-icon" />
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
-            </div>
+
+                </>
+            ) : (
+                <DashboardContent
+                    connectionId={connectionId}
+                    chatSessionId={chatSessionId}
+                    isDarkMode={isDarkMode}
+                    setMessages={setMessages} // For error messages
+                    showLoadingModal={showLoadingModal}
+                    setShowLoadingModal={setShowLoadingModal}
+                    currentStep={currentStep}
+                    setCurrentStep={setCurrentStep}
+                />
+            )}
 
             {/* Loading Modal */}
             {showLoadingModal && !showConnectionForm && (
