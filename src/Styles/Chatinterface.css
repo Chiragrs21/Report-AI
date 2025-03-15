@@ -621,6 +621,7 @@
   color: #e2e8f0;
 }
 
+/* Remove the existing spinner and checkmark styles and replace with these */
 .spinner-container {
   position: relative;
   width: 80px;
@@ -631,11 +632,19 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  position: relative;
-  border: 4px solid transparent;
-  background: linear-gradient(white, white) padding-box,
-    linear-gradient(45deg, #4318ff 0%, #a855f7 50%, #4318ff 100%) border-box;
-  animation: rotate 1.5s linear infinite;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #4318ff;
+  animation: spin 1.5s linear infinite;
+}
+
+.spinner.complete {
+  animation: none;
+  border: 4px solid #34d399;
+}
+
+.spinner.error {
+  animation: none;
+  border: 4px solid #ef4444;
 }
 
 .progress-text {
@@ -646,10 +655,49 @@
   font-weight: 600;
   color: #4318ff;
   font-size: 1.2em;
-  animation: rotate-counter 1.5s linear infinite;
+  background: white; /* Add background to prevent rotation */
+  width: 40px; /* Fixed width */
+  height: 40px; /* Fixed height */
+  display: flex; /* Center content */
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  animation: none; /* Prevent any animation */
 }
 
+.checkmark,
+.error-mark {
+  width: 24px;
+  height: 24px;
+  animation: checkmark-pop 0.3s ease-out forwards;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.checkmark {
+  color: #34d399;
+}
+
+.error-mark {
+  color: #ef4444;
+}
+
+@keyframes checkmark-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Dark mode adjustments */
 .loading-modal.dark .progress-text {
+  background: #2d3748;
   color: #63b3ed;
 }
 
@@ -658,37 +706,14 @@
     linear-gradient(45deg, #63b3ed 0%, #a855f7 50%, #63b3ed 100%) border-box;
 }
 
-.spinner.complete {
-  animation: none;
-  background: #4318ff;
-  border-color: transparent;
-}
-
 .loading-modal.dark .spinner.complete {
-  background: #63b3ed;
+  border-color: #34d399;
+  background: #2d3748;
 }
 
-.spinner-progress {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-weight: 600;
-  color: #4318ff;
-}
-
-.loading-modal.dark .spinner-progress {
-  color: #63b3ed;
-}
-
-.checkmark {
-  width: 40px;
-  height: 40px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
+.loading-modal.dark .spinner.error {
+  border-color: #ef4444;
+  background: #2d3748;
 }
 
 .loading-content {
@@ -703,24 +728,6 @@
 
 .loading-modal.dark .status-text {
   color: #cbd5e0;
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes rotate-counter {
-  from {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  to {
-    transform: translate(-50%, -50%) rotate(-360deg);
-  }
 }
 
 /* Add these styles to your existing ChatInterface.css file */

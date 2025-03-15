@@ -1,3 +1,5 @@
+from flask_jwt_extended import JWTManager, create_access_token
+from flask import Flask, jsonify, request
 from flask import Flask, request, jsonify, send_file
 import os
 import mysql.connector
@@ -21,8 +23,12 @@ from sqlalchemy import create_engine
 from sqlalchemy import text
 import io
 import xlsxwriter
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required
+from google_auth_oauthlib.flow import Flow
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+import secrets
 
-# Setup logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -31,6 +37,10 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+app.config['JWT_SECRET_KEY'] = os.getenv(
+    'JWT_SECRET_KEY', secrets.token_hex(32))  # Set in .env or generate randomly
+jwt = JWTManager(app)
 
 # Configure Gemini API
 gemini_api_key = os.getenv("GEMINI_API_KEY")
@@ -43,6 +53,43 @@ mongo_client = MongoClient('mongodb://localhost:27017/')
 mongo_db = mongo_client['report_ai']
 chat_sessions_collection = mongo_db['chat_sessions']
 connections_collection = mongo_db['connections']
+
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI = "http://localhost:5000/signin/google/callback"
+
+# Updated SCOPES to use full URIs to match Google's response
+SCOPES = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile'
+]
+
+if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+    logger.error("Google OAuth credentials not set in environment")
+    raise Exception("Google OAuth credentials not set in environment")
+
+google_oauth_flow = Flow.from_client_config(
+    {
+        "web": {
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token"
+        }
+    },
+    scopes=SCOPES
+)
+google_oauth_flow.redirect_uri = REDIRECT_URI  # Set explicitly
+
+logger.info(f"Initial Flow config: {google_oauth_flow.client_config}")
+# Corrected from redirect_url
+logger.info(
+    f"Flow redirect_uris after set: {google_oauth_flow.oauth2session._client.redirect_url}")
+
+# MongoDB collection for users
+users_collection = mongo_db['users']
 
 # Store active connections
 active_connections = {}
@@ -134,7 +181,93 @@ def format_for_visualization(sql_query: str, result: list, viz_type: str) -> dic
     return {"data": result}
 
 
+@app.route('/signin/google', methods=['GET'])
+def signin_google():
+    try:
+        authorization_url, state = google_oauth_flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true'
+        )
+        logger.info(f"Generated authorization URL: {authorization_url}")
+        return jsonify({
+            'success': True,
+            'authorization_url': authorization_url,
+            'state': state
+        }), 200
+    except Exception as e:
+        logger.error(f"Google sign-in initiation error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Callback endpoint for Google OAuth
+
+
+@app.route('/signin/google/callback', methods=['GET'])
+def signin_google_callback():
+    try:
+        # Get the authorization code and state from the callback
+        code = request.args.get('code')
+        state = request.args.get('state')
+
+        if not code or not state:
+            return jsonify({'success': False, 'error': 'Missing code or state'}), 400
+
+        # Exchange code for tokens
+        google_oauth_flow.fetch_token(code=code)
+        credentials = google_oauth_flow.credentials
+
+        # Verify the ID token and get user info
+        id_info = id_token.verify_oauth2_token(
+            credentials.id_token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID
+        )
+
+        if id_info['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            return jsonify({'success': False, 'error': 'Invalid token issuer'}), 401
+
+        email = id_info.get('email')
+        name = id_info.get('name', 'Unnamed User')
+        google_id = id_info.get('sub')  # Unique Google user ID
+
+        # Check if user exists in MongoDB, create if not
+        user = users_collection.find_one({'google_id': google_id})
+        if not user:
+            user_data = {
+                'google_id': google_id,
+                'email': email,
+                'name': name,
+                'created_at': time.time()
+            }
+            users_collection.insert_one(user_data)
+            user_id = str(user_data['_id'])
+        else:
+            user_id = str(user['_id'])
+
+        # Create JWT token
+        access_token = create_access_token(
+            identity={'user_id': user_id, 'email': email})
+
+        logger.info(f"User signed in: {email}, user_id: {user_id}")
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'user': {
+                'id': user_id,
+                'email': email,
+                'name': name
+            }
+        }), 200
+
+    except ValueError as e:
+        logger.error(f"Token verification error: {str(e)}")
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        logger.error(f"Google sign-in callback error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # app.py (Updated /create_dashboard)
+
+
 @app.route('/create_dashboard', methods=['POST'])
 def create_dashboard():
     try:

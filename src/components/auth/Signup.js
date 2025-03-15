@@ -1,14 +1,59 @@
-import { Link } from 'react-router-dom';
-import "../../Styles/Signup.css"
-import Background from "../../img/background.png"
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import "../../Styles/Signup.css";
+import Background from "../../img/background.png";
 
 export default function Page() {
+    const navigate = useNavigate();
+
+    // Function to initiate Google Sign-In
+    const handleGoogleSignIn = async () => {
+        try {
+            const response = await fetch('http://localhost:5000/signin/google', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await response.json();
+            if (data.success) {
+                // Redirect to Google's authorization URL
+                window.location.href = data.authorization_url;
+            } else {
+                console.error('Failed to get Google auth URL:', data.error);
+            }
+        } catch (error) {
+            console.error('Error initiating Google Sign-In:', error);
+        }
+    };
+
+    // Handle the callback from Google (when redirected to /home?access_token=...)
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const accessToken = urlParams.get('access_token');
+
+        if (accessToken) {
+            // Store the JWT token and user info in localStorage
+            localStorage.setItem('token', accessToken);
+
+            // Fetch user info from the token or a separate endpoint if needed
+            // For now, we'll assume the token contains user info or we get it later
+            console.log('Access token received:', accessToken);
+
+            // Redirect to the home page
+            navigate('/home'); // Adjust to your home route, e.g., '/dashboard'
+
+            // Clear the URL query params (optional)
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [navigate]);
+
     return (
         <div className="container">
             <div className="language-selector">
                 <select>
                     <option>English (United States)</option>
-                    <option>English (United States)</option>
+                    <option>English (United Kingdom)</option>
                 </select>
             </div>
 
@@ -21,7 +66,7 @@ export default function Page() {
                         </div>
 
                         <div className="login-options">
-                            <button className="google-button">
+                            <button className="google-button" onClick={handleGoogleSignIn}>
                                 <svg viewBox="0 0 24 24" width="24" height="24">
                                     <path
                                         fill="#4285f4"
@@ -54,17 +99,20 @@ export default function Page() {
                         </div>
 
                         <p className="terms">
-                            By Log In, you agree to the <Link href="#">Terms of use</Link> and <Link href="#">Privacy Policy.</Link>
+                            By Log In, you agree to the <Link to="#">Terms of use</Link> and{' '}
+                            <Link to="#">Privacy Policy.</Link>
                         </p>
                     </div>
                 </div>
 
                 <div className="illustration-section">
-                    <img className="abstraction" alt="Abstraction" src={Background} fill
-                        priority />
+                    <img
+                        className="abstraction"
+                        alt="Abstraction"
+                        src={Background}
+                    />
                 </div>
             </main>
         </div>
-    )
+    );
 }
-

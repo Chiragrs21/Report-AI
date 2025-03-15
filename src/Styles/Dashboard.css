@@ -29,9 +29,9 @@
   max-width: 1600px;
   margin: 0 auto;
   padding: 20px;
-  background: #ffffff;
+  background: #b7b7b7;
   border-radius: 12px;
-  height: auto !important;
+  height: 250vh !important;
   min-height: fit-content;
   overflow: visible;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
