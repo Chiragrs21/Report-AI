@@ -1,6 +1,6 @@
 from flask_jwt_extended import JWTManager, create_access_token
 from flask import Flask, jsonify, request
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, redirect
 import os
 import mysql.connector
 import sqlite3
@@ -227,7 +227,7 @@ def signin_google_callback():
 
         email = id_info.get('email')
         name = id_info.get('name', 'Unnamed User')
-        google_id = id_info.get('sub')  # Unique Google user ID
+        google_id = id_info.get('sub')
 
         # Check if user exists in MongoDB, create if not
         user = users_collection.find_one({'google_id': google_id})
@@ -245,25 +245,22 @@ def signin_google_callback():
 
         # Create JWT token
         access_token = create_access_token(
-            identity={'user_id': user_id, 'email': email})
+            identity={'user_id': user_id, 'email': email}
+        )
 
-        logger.info(f"User signed in: {email}, user_id: {user_id}")
-        return jsonify({
-            'success': True,
-            'access_token': access_token,
-            'user': {
-                'id': user_id,
-                'email': email,
-                'name': name
-            }
-        }), 200
+        # Redirect to frontend with token
+        frontend_url = "http://localhost:3000/"  # Update with your frontend URL
+        redirect_url = f"{frontend_url}?token={access_token}&user={quote(json.dumps({'id': user_id, 'email': email, 'name': name}))}"
+
+        logger.info(f"User signed in: {email}, redirecting to: {frontend_url}")
+        return redirect(frontend_url)
 
     except ValueError as e:
         logger.error(f"Token verification error: {str(e)}")
-        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+        return redirect("http://localhost:3000/login?error=invalid_token")
     except Exception as e:
         logger.error(f"Google sign-in callback error: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return redirect("http://localhost:3000/login?error=server_error")
 
 # app.py (Updated /create_dashboard)
 
@@ -972,12 +969,16 @@ def process_question():
         ) if history else ""
         logger.debug(f"History context: {history_context}")
 
+        # Updated prompt with restriction on modifying commands
         prompt = (
             f"Given the following database schema:\n{schema_cache}\n"
             f"{history_context}\n"
             f"Generate a SQL query for this question: {question_to_process}\n"
             f"{'For a ' + viz_type + ' visualization, return exactly two columns: label (e.g., category, date) and value (e.g., count, sum). Use these exact aliases.' if viz_type else ''}\n"
-            "Return only the SQL query inside ```sql``` tags.\n"
+            "Important: If the question implies a CREATE, ALTER, INSERT, DELETE, TRUNCATE, DROP, or UPDATE operation, "
+            "do NOT generate a SQL query. Instead, return this exact message inside ```sql``` tags:\n"
+            "```sql\nNot authorized for CREATE, ALTER, INSERT, DELETE, TRUNCATE, DROP, or UPDATE commands\n```\n"
+            "Otherwise, return only the SQL query inside ```sql``` tags.\n"
             "Note: Do not use LIMIT inside IN, ALL, ANY, or SOME subqueries."
         )
         logger.debug(f"Prompt: {prompt}")
@@ -1001,6 +1002,23 @@ def process_question():
         if not sql_query:
             logger.error("No SQL query generated")
             return jsonify({'success': False, 'error': 'Failed to generate SQL query', 'agent_response': str(agent_response)}), 500
+
+        # Check if the response indicates a restricted command
+        if sql_query.strip() == "Not authorized for CREATE, ALTER, INSERT, DELETE, TRUNCATE, DROP, or UPDATE commands":
+            full_response = {
+                'question': question,
+                'sql': sql_query,
+                'result': None,
+                'visualization': viz_type,
+                'reasoning': "Operation not allowed due to restricted SQL command",
+                'timestamp': time.time()
+            }
+            chat_sessions_collection.update_one(
+                {'connection_id': connection_id, 'chat_session_id': chat_session_id},
+                {'$push': {'messages': full_response}}
+            )
+            # 403 Forbidden
+            return jsonify({'success': False, 'error': sql_query}), 403
 
         result = execute_query(connection_data, sql_query)
 

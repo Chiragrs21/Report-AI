@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Bell, HelpCircle, Moon, Search, ArrowRight, Sun, LogOut, Database, FileSpreadsheet, ChevronDown, Zap, Settings } from "lucide-react";
 import "../Styles/Chatinterface.css";
 import ChartRenderer from "../components/charts/ChartRender";
-import TableRenderer from "../components/TableRenderer";
 import { useNavigate } from 'react-router-dom';
 import { DashboardContent } from "./Dashboard";
 

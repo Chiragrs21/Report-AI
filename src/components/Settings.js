@@ -409,14 +409,14 @@ export default function SettingsPage({ isDarkMode, toggleDarkMode, connectionId,
                     )}
                 </div>
                 <div className="header-actions">
-                    <button className="icon-button"><Bell /></button>
+                    <button className="icon-button settings-button" onClick={handleSettingsClick}>
+                        <Settings className="icon" />
+                    </button>
                     <button className="icon-button" onClick={toggleDarkMode}>
                         {isDarkMode ? <Sun /> : <Moon />}
                     </button>
                     <button className="icon-button"><HelpCircle /></button>
-                    <button className="icon-button settings-button" onClick={handleSettingsClick}>
-                        <Settings className="icon" /> Configure
-                    </button>
+
                     <div className="relative">
                         <button onClick={toggleProfile} className="avatar-button">
                             <img
@@ -445,14 +445,9 @@ export default function SettingsPage({ isDarkMode, toggleDarkMode, connectionId,
                         className={`model-button ${activeModel === "GPT-3.5" ? "active" : ""}`}
                         onClick={() => handleModelClick("GPT-3.5")}
                     >
-                        <Zap className="icon" /> Insights
+                        <Zap className="icon" /> Schema
                     </button>
-                    <button
-                        className={`model-button ${activeModel === "GPT-4" ? "active" : ""}`}
-                        onClick={() => handleModelClick("GPT-4")}
-                    >
-                        Reports
-                    </button>
+
                 </div>
             </div>
             {activeModel === "GPT-3.5" && (

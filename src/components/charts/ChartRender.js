@@ -57,7 +57,7 @@ const ChartRenderer = ({ visualization, chartData }) => {
                                                 : "positive"
                                                 }`}
                                         >
-                                            {chartData[0].change || "0%"}
+                                            {chartData[0].change || ""}
                                         </div>
                                     </div>
                                 ) : (

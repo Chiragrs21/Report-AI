@@ -1,0 +1,32 @@
+{
+    "exact_match_accuracy": 0.7059961315280464,
+    "train_losses": [
+        0.7496359716142927,
+        0.32935853561333245,
+        0.23758570126976286
+    ],
+    "val_losses": [
+        0.4733721069991589,
+        0.43776960282658156,
+        0.44178992598675765
+    ],
+    "analysis": {
+        "train_examples": 7000,
+        "dev_examples": 1034,
+        "databases": 166,
+        "avg_question_length": 12.724857142857143,
+        "avg_sql_length": 15.879857142857142,
+        "top_databases": {
+            "college_2": 170,
+            "college_1": 164,
+            "hr_1": 124,
+            "store_1": 112,
+            "soccer_2": 106,
+            "bike_1": 104,
+            "music_1": 100,
+            "hospital_1": 100,
+            "music_2": 100,
+            "dorm_1": 100
+        }
+    }
+}
